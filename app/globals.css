@@ -1,0 +1,20 @@
+@import "tailwindcss";
+
+@theme {
+  --color-bg: #f7f6f2;
+  --color-green: #3d6b3d;
+  --color-green-light: #edf3ed;
+  --color-green-dark: #2d5230;
+  --color-gold: #a07830;
+  --color-gold-light: #f5ead8;
+  --color-text: #1a1a18;
+  --color-text-secondary: #5a5750;
+
+  --font-sans: "Plus Jakarta Sans", system-ui, sans-serif;
+  --font-serif: "Playfair Display", Georgia, serif;
+}
+
+html {
+  background: var(--color-bg);
+  color: var(--color-text);
+}
