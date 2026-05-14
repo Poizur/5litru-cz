@@ -1,20 +1,46 @@
 @import "tailwindcss";
 
+/* === Brand tokens — extracted from live 5litru.cz === */
 @theme {
-  --color-bg: #f7f6f2;
-  --color-green: #3d6b3d;
-  --color-green-light: #edf3ed;
-  --color-green-dark: #2d5230;
-  --color-gold: #a07830;
-  --color-gold-light: #f5ead8;
-  --color-text: #1a1a18;
-  --color-text-secondary: #5a5750;
+  --color-olive: #3d5220;
+  --color-olive-2: #5a7830;
+  --color-olive-pale: #eef3e4;
+  --color-gold: #c4973e;
+  --color-gold-light: #e8c97a;
+  --color-dark: #141a0d;
+  --color-dark-2: #1e2913;
+  --color-cream: #f8f6f0;
+  --color-text: #2a3318;
+  --color-muted: #7a8a65;
+  --color-border: rgba(61, 82, 32, 0.1);
 
-  --font-sans: "Plus Jakarta Sans", system-ui, sans-serif;
-  --font-serif: "Playfair Display", Georgia, serif;
+  --font-sans: "Jost", system-ui, sans-serif;
+  --font-serif: "Cormorant Garamond", Georgia, serif;
+  --font-mono: "DM Mono", "Courier New", monospace;
+
+  --radius-sharp: 2px;
 }
 
+/* Reset (matches live site) */
+*,
+*::before,
+*::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
 html {
-  background: var(--color-bg);
-  color: var(--color-text);
+  scroll-behavior: smooth;
 }
+body {
+  font-family: var(--font-sans);
+  font-size: 16px;
+  background: var(--color-cream);
+  color: var(--color-text);
+  overflow-x: hidden;
+}
+
+/* Legacy article content (migrated WP MDX) — loaded as separate file to keep globals lean.
+   All `.review-hero`, `.guide-hero`, `.badge`, `.hero-stat`, `.proof-strip`, etc.
+   styles live in legacy.css and only apply inside `.legacy-content` wrapper. */
+@import "./legacy.css";
