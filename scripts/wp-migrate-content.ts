@@ -131,7 +131,14 @@ function htmlToMarkdown(html: string): string {
   td.keep(['section'])
   // Drop empty paragraphs and standalone divs that exist purely for layout
   td.remove(['style', 'script'])
-  return td.turndown(html).trim()
+  let md = td.turndown(html).trim()
+  // Cheerio over-escapes during serialization: &#382; → &amp;#382;
+  md = md.replace(/&amp;#(\d+);/g, '&#$1;')
+  md = md.replace(/&amp;#x([0-9a-fA-F]+);/g, '&#x$1;')
+  // WP source bug: malformed entities missing the `#` (&382; instead of &#382;).
+  // Cheerio then escapes the bare `&` → &amp;382;. Infer the intended `#`.
+  md = md.replace(/&amp;(\d+);/g, '&#$1;')
+  return md
 }
 
 function buildFrontmatter(p: Page, schemas: unknown[], category: Category): Record<string, unknown> {
