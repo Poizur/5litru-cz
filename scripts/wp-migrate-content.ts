@@ -138,6 +138,10 @@ function htmlToMarkdown(html: string): string {
   // WP source bug: malformed entities missing the `#` (&382; instead of &#382;).
   // Cheerio then escapes the bare `&` → &amp;382;. Infer the intended `#`.
   md = md.replace(/&amp;(\d+);/g, '&#$1;')
+  // Strip lowercase HTML event handlers (onerror, onclick, onload, ...).
+  // JSX requires camelCase (onError, etc.). The originals were inline JS
+  // for legacy WP fallbacks; static migration doesn't need them.
+  md = md.replace(/\s+on[a-z]+="[^"]*"/g, '')
   return md
 }
 

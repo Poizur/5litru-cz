@@ -34,6 +34,9 @@ function buildTrail({ kind, slug, title }: BreadcrumbsProps): BreadcrumbItem[] {
   }
 
   const leaf: BreadcrumbItem = { label: title, href: `/${slug}/` }
+  // Drop the category when leaf IS the category root (e.g. on /nejlepsi-olivovy-olej-5l/
+  // itself, the "Srovnání" category points to the same URL — collapse the trail).
+  if (category && category.href === leaf.href) return [home, leaf]
   return category ? [home, category, leaf] : [home, leaf]
 }
 
@@ -63,7 +66,7 @@ export function Breadcrumbs(props: BreadcrumbsProps) {
           {trail.map((item, i) => {
             const isLast = i === trail.length - 1
             return (
-              <li key={item.href} className="flex items-center gap-2">
+              <li key={`${i}-${item.href}`} className="flex items-center gap-2">
                 {isLast ? (
                   <span className="text-[color:var(--color-text)]">{item.label}</span>
                 ) : (
