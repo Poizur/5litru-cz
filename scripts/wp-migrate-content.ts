@@ -1,23 +1,28 @@
-// Converts WordPress pages from data/pages.json into:
-//   - content/guides/<slug>.mdx        (17 guides)
+// Converts WordPress pages from data/pages.json into raw-HTML mirror content.
+//
+// Output:
+//   - content/guides/<slug>.mdx        (17 guides, frontmatter + raw HTML body)
 //   - content/pages/<slug>.mdx         (5 comparisons + homepage + o-webu = 7)
 //   - data/migrated-reviews.json       (10 reviews → consumed by db-import-reviews.ts)
 //
-// HTML cleanup pipeline:
-//   1. Parse with cheerio
-//   2. Drop <nav>, <footer>, <link>, <style>, <head>-ish elements
-//   3. Pull out <script type="application/ld+json"> blocks into frontmatter.schemas
-//   4. Rewrite img src: https://5litru.cz/wp-content/uploads/<path>  →  /images/<path>
-//   5. Inject alt text from data/images.json for images that have one
-//   6. Turndown → clean markdown
+// Strategy (post live-site comparison): the live site uses an Elementor canvas
+// template that bakes <nav>, <footer>, inline <style>, and JSON-LD schemas
+// directly into the page body. To match 1:1, we preserve all of this and let
+// the Next.js page render the body via dangerouslySetInnerHTML — same DOM
+// shape as live, same CSS hooks, same brand chrome on every page.
 //
-// Run: npx tsx scripts/wp-migrate-content.ts
+// Cleanup pipeline (gentle, fidelity-preserving):
+//   1. Strip <link>, <script> tags (CSS loaded centrally; scripts are inert).
+//      Exception: <script type="application/ld+json"> captured to frontmatter.
+//   2. Strip WordPress block comments (<!-- wp:html -->) — pure markup noise.
+//   3. Rewrite img src: https://5litru.cz/wp-content/uploads/<x>  →  /images/<x>
+//   4. Inject alt text from data/images.json for images with empty alt.
+//   5. Substitute <span data-produkt="X" data-pole="Y">…</span> with OLEJE data.
 
 import { readFile, writeFile, mkdir } from 'node:fs/promises'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { load as loadHtml } from 'cheerio'
-import TurndownService from 'turndown'
 import matter from 'gray-matter'
 
 const ROOT = process.cwd()
@@ -35,24 +40,10 @@ const COMPARISONS = new Set([
   'olivovy-olej-5l-akce',
 ])
 
-// Live site has `const OLEJE = {…}` inline JS that fills <span data-produkt data-pole>
-// placeholders with price/harvest/acidity/region values. Extracted to
-// data/products-runtime.json for SSR-time substitution.
 type OlejeRecord = Record<string, Record<string, string>>
 const OLEJE: OlejeRecord = JSON.parse(
-  readFileSync(join(process.cwd(), 'data', 'products-runtime.json'), 'utf8'),
+  readFileSync(join(ROOT, 'data', 'products-runtime.json'), 'utf8'),
 )
-
-function substituteOlejeSpans(html: string): string {
-  // Match: <span data-produkt="X" data-pole="Y" ...>any old content</span>
-  return html.replace(
-    /<span\s+data-produkt="([^"]+)"\s+data-pole="([^"]+)"[^>]*>[^<]*<\/span>/g,
-    (match, product, field) => {
-      const value = OLEJE[product]?.[field]
-      return value !== undefined ? value : match
-    },
-  )
-}
 
 interface Page {
   id: string
@@ -91,7 +82,6 @@ function categorize(slug: string): Category {
 }
 
 function buildAltLookup(images: ImageRow[]): Map<string, string> {
-  // Map: public_url → alt_text (only non-empty)
   const m = new Map<string, string>()
   for (const img of images) {
     if (img.alt_text && img.alt_text.trim()) {
@@ -102,14 +92,13 @@ function buildAltLookup(images: ImageRow[]): Map<string, string> {
 }
 
 function rewriteImgPath(url: string): string {
-  // https://5litru.cz/wp-content/uploads/2025/11/foo.jpg  →  /images/2025/11/foo.jpg
   const m = url.match(/^https?:\/\/(?:www\.)?5litru\.cz\/wp-content\/uploads\/(.+)$/i)
   if (m) return `/images/${m[1]}`
   return url
 }
 
 function extractSchemas(html: string): { cleanedHtml: string; schemas: unknown[] } {
-  const $ = loadHtml(html, { decodeEntities: false })
+  const $ = loadHtml(html)
   const schemas: unknown[] = []
   $('script[type="application/ld+json"]').each((_, el) => {
     const text = $(el).html() ?? ''
@@ -117,22 +106,24 @@ function extractSchemas(html: string): { cleanedHtml: string; schemas: unknown[]
       const trimmed = text.trim()
       if (trimmed) schemas.push(JSON.parse(trimmed))
     } catch {
-      // Skip malformed JSON-LD
+      /* skip malformed */
     }
   })
-  // Remove everything we don't want to convert
-  $('script, style, link, nav, footer, header').remove()
+  // Strip <link> (CSS loaded centrally) and ALL <script> tags (inert in static mirror;
+  // JSON-LD already captured to frontmatter and re-emitted by page component).
+  $('link').remove()
+  $('script').remove()
   return { cleanedHtml: $.html(), schemas }
 }
 
-function preprocessImages(html: string, altLookup: Map<string, string>): string {
-  const $ = loadHtml(html, { decodeEntities: false })
+function rewriteImages(html: string, altLookup: Map<string, string>): string {
+  const $ = loadHtml(html)
   $('img').each((_, el) => {
     const $el = $(el)
     const src = $el.attr('src') ?? ''
-    const existingAlt = $el.attr('alt') ?? ''
     const newSrc = rewriteImgPath(src)
     $el.attr('src', newSrc)
+    const existingAlt = $el.attr('alt') ?? ''
     if (!existingAlt && altLookup.has(src)) {
       $el.attr('alt', altLookup.get(src)!)
     }
@@ -140,48 +131,33 @@ function preprocessImages(html: string, altLookup: Map<string, string>): string 
   return $.html()
 }
 
-function htmlToMarkdown(html: string): string {
-  const td = new TurndownService({
-    headingStyle: 'atx',         // # H1 instead of underline
-    codeBlockStyle: 'fenced',
-    bulletListMarker: '-',
-    emDelimiter: '_',
-  })
-  // Preserve <section> as semantic divs in MD (will round-trip via MDX raw HTML)
-  td.keep(['section'])
-  // Drop empty paragraphs and standalone divs that exist purely for layout
-  td.remove(['style', 'script'])
-  let md = td.turndown(html).trim()
-  // Cheerio over-escapes during serialization: &#382; → &amp;#382;
-  md = md.replace(/&amp;#(\d+);/g, '&#$1;')
-  md = md.replace(/&amp;#x([0-9a-fA-F]+);/g, '&#x$1;')
-  // WP source bug: malformed entities missing the `#` (&382; instead of &#382;).
-  // Cheerio then escapes the bare `&` → &amp;382;. Infer the intended `#`.
-  md = md.replace(/&amp;(\d+);/g, '&#$1;')
-  // Strip lowercase HTML event handlers (onerror, onclick, onload, ...).
-  // JSX requires camelCase (onError, etc.). The originals were inline JS
-  // for legacy WP fallbacks; static migration doesn't need them.
-  md = md.replace(/\s+on[a-z]+="[^"]*"/g, '')
-  return md
+function substituteOlejeSpans(html: string): string {
+  return html.replace(
+    /<span\s+data-produkt="([^"]+)"\s+data-pole="([^"]+)"[^>]*>[^<]*<\/span>/g,
+    (match, product, field) => {
+      const value = OLEJE[product]?.[field]
+      return value !== undefined ? value : match
+    },
+  )
 }
 
-function buildFrontmatter(p: Page, schemas: unknown[], category: Category): Record<string, unknown> {
-  const ogImage = p.seo.og_image_url ? rewriteImgPath(p.seo.og_image_url) : null
-  return {
-    title: p.title,
-    slug: p.slug,
-    description: p.seo.description || '',
-    focus_keyword: p.seo.focus_keyword || '',
-    og_image: ogImage,
-    published_at: p.date,
-    word_count: p.word_count,
-    category,
-    seo_score: Number(p.seo.seo_score) || null,
-    schemas, // array of JSON-LD objects
-  }
+function stripWpBlockComments(html: string): string {
+  // Remove <!-- wp:html --> / <!-- /wp:html --> / <!-- wp:paragraph --> markers.
+  return html.replace(/<!--\s*\/?wp:[^>]*-->/g, '')
 }
 
-async function ensureDir(p: string) { await mkdir(p, { recursive: true }) }
+function decodeNumericEntityFallback(html: string): string {
+  // Cheerio's serializer turns malformed source entities like `&382;` into
+  // `&amp;382;`. Recover the intended numeric entity so browsers render ž.
+  return html
+    .replace(/&amp;#(\d+);/g, '&#$1;')
+    .replace(/&amp;#x([0-9a-fA-F]+);/g, '&#x$1;')
+    .replace(/&amp;(\d+);/g, '&#$1;')
+}
+
+async function ensureDir(p: string) {
+  await mkdir(p, { recursive: true })
+}
 
 async function main() {
   const pagesRaw = await readFile(PAGES_JSON, 'utf8')
@@ -193,17 +169,48 @@ async function main() {
   await ensureDir(GUIDES_DIR)
   await ensureDir(PAGES_DIR)
 
-  const reviewsOut: Array<{ slug: string; review_slug: string; frontmatter: Record<string, unknown>; mdx: string }> = []
-  const counts: Record<Category, number> = { review: 0, guide: 0, comparison: 0, homepage: 0, about: 0 }
+  const reviewsOut: Array<{
+    slug: string
+    review_slug: string
+    frontmatter: Record<string, unknown>
+    mdx: string
+  }> = []
+  const counts: Record<Category, number> = {
+    review: 0,
+    guide: 0,
+    comparison: 0,
+    homepage: 0,
+    about: 0,
+  }
 
   for (const page of pages) {
     const category = categorize(page.slug)
-    const substituted = substituteOlejeSpans(page.content_html)
-    const { cleanedHtml, schemas } = extractSchemas(substituted)
-    const withImgPaths = preprocessImages(cleanedHtml, altLookup)
-    const md = htmlToMarkdown(withImgPaths)
-    const fm = buildFrontmatter(page, schemas, category)
-    const mdx = matter.stringify(md, fm)
+
+    // Pipeline: substitute OLEJE → strip wp comments → extract schemas + strip script/link
+    //         → rewrite images → recover numeric entities.
+    let html = page.content_html
+    html = substituteOlejeSpans(html)
+    html = stripWpBlockComments(html)
+    const { cleanedHtml, schemas } = extractSchemas(html)
+    html = rewriteImages(cleanedHtml, altLookup)
+    html = decodeNumericEntityFallback(html)
+
+    const ogImage = page.seo.og_image_url ? rewriteImgPath(page.seo.og_image_url) : null
+
+    const fm = {
+      title: page.title,
+      slug: page.slug,
+      description: page.seo.description || '',
+      focus_keyword: page.seo.focus_keyword || '',
+      og_image: ogImage,
+      published_at: page.date,
+      word_count: page.word_count,
+      category,
+      seo_score: Number(page.seo.seo_score) || null,
+      schemas,
+    }
+
+    const mdx = matter.stringify(html, fm)
 
     if (category === 'review') {
       reviewsOut.push({
@@ -215,7 +222,6 @@ async function main() {
     } else if (category === 'guide') {
       await writeFile(join(GUIDES_DIR, `${page.slug}.mdx`), mdx, 'utf8')
     } else {
-      // comparison | homepage | about → content/pages/
       await writeFile(join(PAGES_DIR, `${page.slug}.mdx`), mdx, 'utf8')
     }
     counts[category]++
@@ -223,7 +229,7 @@ async function main() {
 
   await writeFile(REVIEWS_INTERMEDIATE, JSON.stringify(reviewsOut, null, 2), 'utf8')
 
-  console.log('\nMigration complete:')
+  console.log('\n1:1 mirror migration complete:')
   console.log(`  reviews    (→ data/migrated-reviews.json): ${counts.review}`)
   console.log(`  guides     (→ content/guides/*.mdx):       ${counts.guide}`)
   console.log(`  comparisons(→ content/pages/*.mdx):        ${counts.comparison}`)
@@ -232,4 +238,7 @@ async function main() {
   console.log(`  total: ${pages.length}`)
 }
 
-main().catch((e) => { console.error(e); process.exit(1) })
+main().catch((e) => {
+  console.error(e)
+  process.exit(1)
+})

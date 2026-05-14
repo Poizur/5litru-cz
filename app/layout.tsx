@@ -1,7 +1,5 @@
 import type { Metadata } from 'next'
 import './globals.css'
-import { Header } from '@/components/layout/Header'
-import { Footer } from '@/components/layout/Footer'
 
 export const metadata: Metadata = {
   title: {
@@ -20,6 +18,10 @@ export const metadata: Metadata = {
   robots: { index: true, follow: true },
 }
 
+// Live 5litru.cz uses an Elementor canvas template — each page bakes its own
+// <nav>, <footer>, and inline <style> into the body. To match 1:1, this root
+// layout ONLY provides <html>, fonts, and theme CSS; per-page chrome (logo,
+// nav, footer) comes from the migrated content via dangerouslySetInnerHTML.
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="cs">
@@ -35,11 +37,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           rel="stylesheet"
         />
       </head>
-      <body>
-        <Header />
-        <main className="pt-[60px]">{children}</main>
-        <Footer />
-      </body>
+      <body>{children}</body>
     </html>
   )
 }

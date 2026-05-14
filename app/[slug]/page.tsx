@@ -1,9 +1,6 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
-import { MDXRemote } from 'next-mdx-remote/rsc'
 import { cache } from 'react'
-import { mdxComponents } from '@/lib/mdx-components'
-import { Breadcrumbs } from '@/components/layout/Breadcrumbs'
 import {
   resolveContent,
   getAllGuideSlugs,
@@ -15,8 +12,6 @@ interface PageProps {
   params: Promise<{ slug: string }>
 }
 
-// React.cache dedupes async calls within a single request — generateMetadata and
-// the page body both call resolveContent for the same slug.
 const resolve = cache(resolveContent)
 
 export async function generateStaticParams() {
@@ -49,12 +44,18 @@ export default async function ContentPage({ params }: PageProps) {
   const item = await resolve(slug)
   if (!item) notFound()
 
+  const schemas = Array.isArray(item.frontmatter.schemas) ? item.frontmatter.schemas : []
+
   return (
     <>
-      <Breadcrumbs kind={item.kind} title={item.frontmatter.title ?? slug} slug={slug} />
-      <article className="legacy-content">
-        <MDXRemote source={item.body} components={mdxComponents} />
-      </article>
+      {schemas.map((schema, i) => (
+        <script
+          key={i}
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }}
+        />
+      ))}
+      <div dangerouslySetInnerHTML={{ __html: item.body }} />
     </>
   )
 }
