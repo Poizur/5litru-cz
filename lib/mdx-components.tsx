@@ -1,8 +1,14 @@
 // MDX components registered for compileMDX(). Custom block components live here.
-// Phase 4 additions (Callout, FAQ) will be wired in subsequent commits.
+// Author-facing usage in MDX:
+//   <Callout type="tip">…</Callout>
+//   <FAQ items={[{question, answer}, …]} />
 
 import type { MDXComponents } from 'mdx/types'
+import { Callout } from '@/components/content/CalloutBox'
+import { FAQ } from '@/components/content/FAQ'
 
 export const mdxComponents: MDXComponents = {
-  // Placeholders — populated in sub-phase C (content) and D (product).
+  Callout,
+  FAQ,
+  // Product components added in sub-phase 4D.
 }
