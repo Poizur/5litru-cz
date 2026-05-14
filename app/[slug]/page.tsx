@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import { MDXRemote } from 'next-mdx-remote/rsc'
 import { cache } from 'react'
 import { mdxComponents } from '@/lib/mdx-components'
+import { Breadcrumbs } from '@/components/layout/Breadcrumbs'
 import {
   resolveContent,
   getAllGuideSlugs,
@@ -49,8 +50,11 @@ export default async function ContentPage({ params }: PageProps) {
   if (!item) notFound()
 
   return (
-    <article className="legacy-content">
-      <MDXRemote source={item.body} components={mdxComponents} />
-    </article>
+    <>
+      <Breadcrumbs kind={item.kind} title={item.frontmatter.title ?? slug} slug={slug} />
+      <article className="legacy-content">
+        <MDXRemote source={item.body} components={mdxComponents} />
+      </article>
+    </>
   )
 }
