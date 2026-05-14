@@ -1,0 +1,102 @@
+{
+  "motakis": {
+    "nazev": "Motakis Kréta",
+    "cena": "1 290 Kč",
+    "litr": "258 Kč/l",
+    "sklizen": "2025/26",
+    "acidita": "0,49–0,8 %",
+    "expirece": "8/2027",
+    "odruva": "Koroneiki",
+    "oblast": "Kréta"
+  },
+  "sitia": {
+    "nazev": "SITIA Premium Gold 0,2 %",
+    "cena": "1 590 Kč",
+    "litr": "318 Kč/l",
+    "sklizen": "2025/26",
+    "acidita": "0,26 %",
+    "expirece": "1/2028",
+    "odruva": "Koroneiki",
+    "oblast": "Sitia Lassithi, Kréta"
+  },
+  "orino": {
+    "nazev": "Orino Sitia P.D.O.",
+    "cena": "1 590 Kč",
+    "litr": "318 Kč/l",
+    "sklizen": "2025/26",
+    "acidita": "≤ 0,39 %",
+    "expirece": "4/2027",
+    "odruva": "Koroneiki",
+    "oblast": "Sitia, Kréta"
+  },
+  "pallada": {
+    "nazev": "Pallada Kréta",
+    "cena": "1 549 Kč",
+    "litr": "310 Kč/l",
+    "sklizen": "2025/26",
+    "acidita": "0,61–0,8 %",
+    "expirece": "2027",
+    "odruva": "Koroneiki",
+    "oblast": "Akrotiri, Chania, Kréta"
+  },
+  "theoni": {
+    "nazev": "Theoni Kalamata",
+    "cena": "1 390 Kč",
+    "litr": "278 Kč/l",
+    "sklizen": "2025/26",
+    "acidita": "≤ 0,8 %",
+    "expirece": "2027",
+    "odruva": "Koroneiki",
+    "oblast": "Astros Kinouria, Arcadia, Peloponés"
+  },
+  "erato": {
+    "nazev": "Erato Kalamata",
+    "cena": "1 549 Kč",
+    "litr": "310 Kč/l",
+    "sklizen": "2024/25",
+    "acidita": "0,42 %",
+    "expirece": "2026",
+    "odruva": "Koroneiki",
+    "oblast": "Messinia, Peloponés"
+  },
+  "nikolos": {
+    "nazev": "Nikolos Kalamata",
+    "cena": "1 690 Kč",
+    "litr": "338 Kč/l",
+    "sklizen": "2025/26",
+    "acidita": "0,37 %",
+    "expirece": "2027",
+    "odruva": "Koroneiki",
+    "oblast": "Diodia, Messinia, Peloponés"
+  },
+  "neotis": {
+    "nazev": "Neotis Manaki",
+    "cena": "2 090 Kč",
+    "litr": "418 Kč/l",
+    "sklizen": "2025/26",
+    "acidita": "≤ 0,3 %",
+    "expirece": "8/2027",
+    "odruva": "Manaki",
+    "oblast": "Peloponés"
+  },
+  "petromilos": {
+    "nazev": "Petromilos Zakynthos",
+    "cena": "1 490 Kč",
+    "litr": "298 Kč/l",
+    "sklizen": "2024/25",
+    "acidita": "0,36 %",
+    "expirece": "2026",
+    "odruva": "Koroneiki",
+    "oblast": "ostrov Zakynthos"
+  },
+  "evoilino": {
+    "nazev": "Evoilino Korfu",
+    "cena": "2 099 Kč",
+    "litr": "420 Kč/l",
+    "sklizen": "2025/26",
+    "acidita": "0,32 %",
+    "expirece": "2027",
+    "odruva": "Koroneiki",
+    "oblast": "ostrov Korfu"
+  }
+}

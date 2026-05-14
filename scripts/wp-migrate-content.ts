@@ -14,6 +14,7 @@
 // Run: npx tsx scripts/wp-migrate-content.ts
 
 import { readFile, writeFile, mkdir } from 'node:fs/promises'
+import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { load as loadHtml } from 'cheerio'
 import TurndownService from 'turndown'
@@ -33,6 +34,25 @@ const COMPARISONS = new Set([
   'kalamata-olivovy-olej-5l',
   'olivovy-olej-5l-akce',
 ])
+
+// Live site has `const OLEJE = {…}` inline JS that fills <span data-produkt data-pole>
+// placeholders with price/harvest/acidity/region values. Extracted to
+// data/products-runtime.json for SSR-time substitution.
+type OlejeRecord = Record<string, Record<string, string>>
+const OLEJE: OlejeRecord = JSON.parse(
+  readFileSync(join(process.cwd(), 'data', 'products-runtime.json'), 'utf8'),
+)
+
+function substituteOlejeSpans(html: string): string {
+  // Match: <span data-produkt="X" data-pole="Y" ...>any old content</span>
+  return html.replace(
+    /<span\s+data-produkt="([^"]+)"\s+data-pole="([^"]+)"[^>]*>[^<]*<\/span>/g,
+    (match, product, field) => {
+      const value = OLEJE[product]?.[field]
+      return value !== undefined ? value : match
+    },
+  )
+}
 
 interface Page {
   id: string
@@ -178,7 +198,8 @@ async function main() {
 
   for (const page of pages) {
     const category = categorize(page.slug)
-    const { cleanedHtml, schemas } = extractSchemas(page.content_html)
+    const substituted = substituteOlejeSpans(page.content_html)
+    const { cleanedHtml, schemas } = extractSchemas(substituted)
     const withImgPaths = preprocessImages(cleanedHtml, altLookup)
     const md = htmlToMarkdown(withImgPaths)
     const fm = buildFrontmatter(page, schemas, category)

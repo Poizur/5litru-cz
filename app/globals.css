@@ -40,7 +40,22 @@ body {
   overflow-x: hidden;
 }
 
-/* Legacy article content (migrated WP MDX) — loaded as separate file to keep globals lean.
-   All `.review-hero`, `.guide-hero`, `.badge`, `.hero-stat`, `.proof-strip`, etc.
-   styles live in legacy.css and only apply inside `.legacy-content` wrapper. */
+/* WordPress + Kadence theme stylesheets pulled from live 5litru.cz.
+   global.css (typography/spacing), content.css (article prose), block-library
+   style.css (Gutenberg), tablepress default.css. Order matters: imported
+   first so site-specific styles in legacy.css and our own theme tokens win. */
+@import "./wp-theme.css";
+
+/* Legacy article content (migrated WP MDX) — page-specific CSS extracted from
+   live <style> blocks (homepage + motakis + acidita). Contains all the brand
+   styles for `.review-hero`, `.hero-stat`, `.badge`, `.proof-strip` and friends. */
 @import "./legacy.css";
+
+/* Reveal-on-scroll animation: the live site uses IntersectionObserver to add
+   `.on` to `.reveal` elements when they enter the viewport. We don't ship that
+   JS — make reveal elements visible by default (no animation, but content shows). */
+.reveal {
+  opacity: 1 !important;
+  transform: none !important;
+  transition: none !important;
+}
