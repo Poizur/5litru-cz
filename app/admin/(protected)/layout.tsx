@@ -17,8 +17,10 @@ export default async function ProtectedAdminLayout({ children }: { children: Rea
           </Link>
           <nav className="hidden gap-6 md:flex">
             <AdminLink href="/admin/catalog/">Katalog</AdminLink>
+            <AdminLink href="/admin/suggestions/">Návrhy</AdminLink>
             <AdminLink href="/admin/add/">Přidat z URL</AdminLink>
             <AdminLink href="/admin/retailers/">Retailers</AdminLink>
+            <AdminLink href="/admin/sync-log/">Sync log</AdminLink>
           </nav>
           <form method="POST" action="/api/admin/logout">
             <button
@@ -31,8 +33,10 @@ export default async function ProtectedAdminLayout({ children }: { children: Rea
         </div>
         <nav className="flex gap-5 overflow-x-auto pb-3 pt-1 md:hidden">
           <AdminLink href="/admin/catalog/">Katalog</AdminLink>
+          <AdminLink href="/admin/suggestions/">Návrhy</AdminLink>
           <AdminLink href="/admin/add/">Přidat</AdminLink>
           <AdminLink href="/admin/retailers/">Retailers</AdminLink>
+          <AdminLink href="/admin/sync-log/">Log</AdminLink>
         </nav>
       </header>
       <main className="mx-auto max-w-[1100px] px-5 py-8 md:px-10 md:py-12">{children}</main>

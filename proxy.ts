@@ -1,5 +1,9 @@
 // Gate /admin/* (except /admin/login) behind a signed session cookie.
 // Edge-runtime — uses only Web Crypto API (mirrors lib/admin-auth.ts).
+//
+// Next.js 16: proxy.ts replaces middleware.ts. Function export name MUST
+// be `proxy` (or default) — the previous `middleware` export triggers
+// "Proxy is missing expected function export name".
 
 import { NextRequest, NextResponse } from 'next/server'
 
@@ -39,7 +43,7 @@ async function isValidSession(value: string | undefined, secret: string): Promis
   return !isNaN(age) && age >= 0 && age <= COOKIE_MAX_AGE_MS
 }
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   const isAdmin = pathname.startsWith('/admin')
