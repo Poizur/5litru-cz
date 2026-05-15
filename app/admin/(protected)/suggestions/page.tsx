@@ -1,5 +1,6 @@
 import Image from 'next/image'
 import { supabaseAdmin } from '@/lib/supabase'
+import { AiGenerateButton } from './AiGenerateButton'
 
 export const dynamic = 'force-dynamic'
 
@@ -209,16 +210,21 @@ function SuggestionCard({ s }: { s: SuggestionRow }) {
       </div>
 
       <div className="flex border-t border-[color:var(--color-border)] bg-[color:var(--color-olive-pale)]">
+        <AiGenerateButton
+          suggestionId={s.olivator_product_id}
+          productName={s.name}
+          estimatedCostUsd={0.10}
+        />
         <form
           method="POST"
           action={`/api/admin/suggestions/${s.olivator_product_id}/import`}
-          className="flex-1 border-r border-[color:var(--color-border)]"
+          className="flex-1 border-x border-[color:var(--color-border)]"
         >
           <button
             type="submit"
             className="w-full py-3 text-xs font-semibold uppercase tracking-wider text-[color:var(--color-olive)] transition-colors hover:bg-[color:var(--color-olive)] hover:text-white"
           >
-            Importovat →
+            Import →
           </button>
         </form>
         <form
