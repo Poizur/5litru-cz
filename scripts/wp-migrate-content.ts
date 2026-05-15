@@ -81,6 +81,34 @@ function categorize(slug: string): Category {
   return 'guide'
 }
 
+// RankMath SEO titles are usually better than the WP post title, but two
+// pages in the export have wrong SEO titles (nikolos-kalamata-recenze got
+// "O webu…", o-webu got "livový olej 5l plech…" — copy/paste bugs in
+// RankMath UI). Heuristic: prefer the SEO title only when it shares any
+// significant word (≥4 chars) with the post title. Fall back to post
+// title otherwise. Strip the trailing " | 5litru.cz" — layout template
+// re-adds it via Next.js title.template.
+function getBestTitle(page: Page): string {
+  const pageTitle = (page.title || '').trim()
+  let seoTitle = (page.seo?.title || '').trim()
+  seoTitle = seoTitle.replace(/\s*\|\s*5litru\.cz\s*$/i, '').trim()
+
+  if (page.slug === 'homepage') return seoTitle || pageTitle
+  if (!seoTitle) return pageTitle
+
+  const tokenize = (s: string): Set<string> =>
+    new Set(
+      s
+        .toLowerCase()
+        .split(/[\s\-—–·,:|"'()]+/)
+        .filter((w) => w.length >= 4),
+    )
+  const pageWords = tokenize(pageTitle)
+  const seoWords = tokenize(seoTitle)
+  const overlap = [...seoWords].some((w) => pageWords.has(w))
+  return overlap ? seoTitle : pageTitle
+}
+
 function buildAltLookup(images: ImageRow[]): Map<string, string> {
   const m = new Map<string, string>()
   for (const img of images) {
@@ -198,7 +226,7 @@ async function main() {
     const ogImage = page.seo.og_image_url ? rewriteImgPath(page.seo.og_image_url) : null
 
     const fm = {
-      title: page.title,
+      title: getBestTitle(page),
       slug: page.slug,
       description: page.seo.description || '',
       focus_keyword: page.seo.focus_keyword || '',
