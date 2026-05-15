@@ -45,9 +45,11 @@ const URLS = [
   '/farmarske-olivove-oleje/',
 ]
 
+const BASE = process.env.CHECK_BASE_URL ?? 'http://localhost:3000'
+
 async function check(url: string) {
   const start = Date.now()
-  const res = await fetch(`http://localhost:3000${url}`)
+  const res = await fetch(`${BASE}${url}`)
   const html = await res.text()
   const ms = Date.now() - start
 
@@ -77,7 +79,7 @@ async function check(url: string) {
 }
 
 async function main() {
-  console.log(`Checking ${URLS.length} URLs against http://localhost:3000\n`)
+  console.log(`Checking ${URLS.length} URLs against ${BASE}\n`)
   const rows = []
   for (const url of URLS) {
     try {

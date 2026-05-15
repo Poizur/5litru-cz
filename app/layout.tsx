@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import Script from 'next/script'
 import './globals.css'
 
 export const metadata: Metadata = {
@@ -18,10 +19,8 @@ export const metadata: Metadata = {
   robots: { index: true, follow: true },
 }
 
-// Live 5litru.cz uses an Elementor canvas template — each page bakes its own
-// <nav>, <footer>, and inline <style> into the body. To match 1:1, this root
-// layout ONLY provides <html>, fonts, and theme CSS; per-page chrome (logo,
-// nav, footer) comes from the migrated content via dangerouslySetInnerHTML.
+const GA_ID = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="cs">
@@ -37,7 +36,23 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           rel="stylesheet"
         />
       </head>
-      <body>{children}</body>
+      <body>
+        {children}
+        {GA_ID && (
+          <>
+            <Script
+              src={`https://www.googletagmanager.com/gtag/js?id=${GA_ID}`}
+              strategy="afterInteractive"
+            />
+            <Script id="ga4-init" strategy="afterInteractive">
+              {`window.dataLayer = window.dataLayer || [];
+function gtag(){dataLayer.push(arguments);}
+gtag('js', new Date());
+gtag('config', '${GA_ID}', { anonymize_ip: true });`}
+            </Script>
+          </>
+        )}
+      </body>
     </html>
   )
 }

@@ -1,22 +1,13 @@
 import type { Metadata } from 'next'
 import { getPage } from '@/lib/content'
+import { buildMetadata } from '@/lib/seo'
 
 export const revalidate = 3600
 
 export async function generateMetadata(): Promise<Metadata> {
   const home = await getPage('homepage')
   if (!home) return {}
-  return {
-    title: home.frontmatter.title,
-    description: home.frontmatter.description,
-    alternates: { canonical: 'https://5litru.cz/' },
-    openGraph: {
-      title: home.frontmatter.title,
-      description: home.frontmatter.description,
-      url: 'https://5litru.cz/',
-      images: home.frontmatter.og_image ? [{ url: home.frontmatter.og_image }] : undefined,
-    },
-  }
+  return buildMetadata(home)
 }
 
 export default async function HomePage() {

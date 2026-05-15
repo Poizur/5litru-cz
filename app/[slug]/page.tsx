@@ -7,6 +7,7 @@ import {
   getAllPageSlugs,
   getAllReviewSlugs,
 } from '@/lib/content'
+import { buildMetadata, breadcrumbSchema } from '@/lib/seo'
 
 interface PageProps {
   params: Promise<{ slug: string }>
@@ -24,19 +25,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const { slug } = await params
   const item = await resolve(slug)
   if (!item) return {}
-  const fm = item.frontmatter
-  const canonical = `https://5litru.cz/${slug}/`
-  return {
-    title: fm.title,
-    description: fm.description,
-    alternates: { canonical },
-    openGraph: {
-      title: fm.title,
-      description: fm.description,
-      url: canonical,
-      images: fm.og_image ? [{ url: fm.og_image }] : undefined,
-    },
-  }
+  return buildMetadata(item)
 }
 
 export default async function ContentPage({ params }: PageProps) {
@@ -44,7 +33,9 @@ export default async function ContentPage({ params }: PageProps) {
   const item = await resolve(slug)
   if (!item) notFound()
 
-  const schemas = Array.isArray(item.frontmatter.schemas) ? item.frontmatter.schemas : []
+  const pageSchemas = Array.isArray(item.frontmatter.schemas) ? item.frontmatter.schemas : []
+  const breadcrumb = breadcrumbSchema(item)
+  const schemas = breadcrumb ? [...pageSchemas, breadcrumb] : pageSchemas
 
   return (
     <>
