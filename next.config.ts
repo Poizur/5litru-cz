@@ -46,11 +46,15 @@ async function buildAffiliateRedirects() {
       if (retailer?.ehub_tracking_hash) {
         target.searchParams.set('ehub', retailer.ehub_tracking_hash)
       }
-      return [{
-        source: `/${p.slug}/`,
-        destination: target.toString(),
-        permanent: false,
-      }]
+      const destination = target.toString()
+      // Two aliases per product:
+      //   /${slug}/        — canonical short link (used in current MDX)
+      //   /go/${slug}      — legacy ThirstyAffiliates pattern from WordPress;
+      //                      still referenced by migrated review pages.
+      return [
+        { source: `/${p.slug}/`, destination, permanent: false },
+        { source: `/go/${p.slug}`, destination, permanent: false },
+      ]
     })
     console.log(`[next.config] generated ${redirects.length} affiliate redirects.`)
     return redirects
