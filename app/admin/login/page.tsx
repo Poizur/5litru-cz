@@ -23,8 +23,8 @@ export default async function LoginPage({ searchParams }: PageProps) {
         : null
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[color:var(--color-dark)] px-5">
-      <div className="w-full max-w-sm rounded-[4px] border border-[rgba(196,151,62,0.15)] bg-[rgba(255,255,255,0.04)] p-8">
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--color-dark)', padding: '0 20px' }}>
+      <div style={{ width: '100%', maxWidth: '384px', borderRadius: '4px', border: '1px solid rgba(196,151,62,0.15)', background: 'rgba(255,255,255,0.04)', padding: '32px' }}>
         <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-[color:var(--color-gold)]">
           Admin
         </p>
