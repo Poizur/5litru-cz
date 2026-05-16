@@ -23,7 +23,7 @@ export default async function LoginPage({ searchParams }: PageProps) {
         : null
 
   return (
-    <main className="min-h-screen flex items-center justify-center bg-[color:var(--color-dark)] px-5">
+    <div className="min-h-screen flex items-center justify-center bg-[color:var(--color-dark)] px-5">
       <div className="w-full max-w-sm rounded-[4px] border border-[rgba(196,151,62,0.15)] bg-[rgba(255,255,255,0.04)] p-8">
         <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-[color:var(--color-gold)]">
           Admin
@@ -59,6 +59,6 @@ export default async function LoginPage({ searchParams }: PageProps) {
           </button>
         </form>
       </div>
-    </main>
+    </div>
   )
 }
