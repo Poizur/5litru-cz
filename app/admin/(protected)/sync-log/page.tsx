@@ -1,43 +1,35 @@
 import { supabaseAdmin } from '@/lib/supabase'
+import { PageHeader } from '../_components/PageHeader'
+import { COLORS } from '../_components/tokens'
 
 export const dynamic = 'force-dynamic'
 
 interface LogRow {
   id: number
   started_at: string
-  finished_at: string | null
+  duration_ms: number | null
   products_checked: number | null
   prices_updated: number | null
-  prices_unchanged: number | null
-  prices_missing: number | null
   suggestions_added: number | null
-  suggestions_skipped: number | null
   status: 'running' | 'success' | 'partial' | 'failed'
   error_summary: string | null
-  duration_ms: number | null
   triggered_by: string | null
-}
-
-const STATUS_BADGE: Record<LogRow['status'], string> = {
-  success: 'bg-[color:var(--color-olive)] text-white',
-  partial: 'bg-[color:var(--color-gold)] text-[color:var(--color-dark)]',
-  failed: 'bg-[#c00] text-white',
-  running: 'bg-[rgba(0,0,0,0.1)] text-[color:var(--color-muted)]',
-}
-
-const TRIGGER_LABEL: Record<string, string> = {
-  cron: '🕒 cron',
-  admin_manual: '👤 manual',
-  cli_test: '🧪 cli',
 }
 
 async function loadLogs(): Promise<LogRow[]> {
   const { data } = await supabaseAdmin
     .from('price_sync_log')
-    .select('*')
+    .select('id,started_at,duration_ms,products_checked,prices_updated,suggestions_added,status,error_summary,triggered_by')
     .order('started_at', { ascending: false })
-    .limit(50)
+    .limit(30)
   return (data ?? []) as unknown as LogRow[]
+}
+
+const STATUS_BADGE: Record<LogRow['status'], { bg: string; color: string }> = {
+  success: { bg: COLORS.publishedBg, color: COLORS.published },
+  partial: { bg: COLORS.draftBg, color: COLORS.draft },
+  failed:  { bg: COLORS.dangerBg, color: COLORS.danger },
+  running: { bg: COLORS.surfaceAlt, color: COLORS.textSubtle },
 }
 
 function fmtDuration(ms: number | null): string {
@@ -47,8 +39,7 @@ function fmtDuration(ms: number | null): string {
 }
 
 function fmtTime(iso: string): string {
-  const d = new Date(iso)
-  return d.toLocaleString('cs-CZ', { dateStyle: 'short', timeStyle: 'short' })
+  return new Date(iso).toLocaleString('cs-CZ', { dateStyle: 'short', timeStyle: 'short' })
 }
 
 export default async function SyncLogPage() {
@@ -56,97 +47,143 @@ export default async function SyncLogPage() {
 
   return (
     <>
-      <div className="flex flex-wrap items-baseline justify-between gap-4">
-        <div>
-          <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-[color:var(--color-gold)]">
-            Sync log
-          </p>
-          <h1 className="mt-1 font-serif text-3xl font-bold text-[color:var(--color-text)] md:text-4xl">
-            Historie Olivator syncu
-            <span className="ml-3 font-sans text-base font-normal text-[color:var(--color-muted)]">
-              posledních {logs.length}
-            </span>
-          </h1>
-        </div>
-        <form method="POST" action="/api/admin/sync">
-          <button
-            type="submit"
-            className="rounded-[2px] bg-[color:var(--color-olive)] px-5 py-2.5 text-xs font-semibold uppercase tracking-wider text-white transition-colors hover:bg-[color:var(--color-olive-2)]"
-          >
-            Spustit sync ručně →
-          </button>
-        </form>
-      </div>
+      <PageHeader
+        title="Sync log"
+        subtitle="Posledních 30 běhů Olivator syncu"
+        right={
+          <form method="POST" action="/api/admin/sync">
+            <button
+              type="submit"
+              style={{
+                background: COLORS.olive,
+                color: '#FFFFFF',
+                fontSize: '13px',
+                fontWeight: 500,
+                padding: '6px 14px',
+                borderRadius: '6px',
+                border: 'none',
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+              }}
+            >Spustit sync ručně</button>
+          </form>
+        }
+      />
 
-      <div className="mt-8 overflow-x-auto rounded-[4px] border border-[color:var(--color-border)] bg-white">
-        <table className="w-full text-sm">
-          <thead className="border-b border-[color:var(--color-border)] bg-[color:var(--color-olive-pale)] text-left font-mono text-[10px] uppercase tracking-wider text-[color:var(--color-olive)]">
-            <tr>
-              <th className="px-4 py-3">Čas</th>
-              <th className="px-4 py-3">Trigger</th>
-              <th className="px-4 py-3 text-right">Trvání</th>
-              <th className="px-4 py-3 text-right">Cen ↻</th>
-              <th className="px-4 py-3 text-right">Cen =</th>
-              <th className="px-4 py-3 text-right">Cen ⚠</th>
-              <th className="px-4 py-3 text-right">Nové návrhy</th>
-              <th className="px-4 py-3">Stav</th>
-            </tr>
-          </thead>
-          <tbody>
-            {logs.map((l) => (
-              <tr key={l.id} className="border-b border-[color:var(--color-border)] last:border-0">
-                <td className="px-4 py-3 font-mono text-xs text-[color:var(--color-text)]">
-                  {fmtTime(l.started_at)}
-                </td>
-                <td className="px-4 py-3 text-xs text-[color:var(--color-muted)]">
-                  {TRIGGER_LABEL[l.triggered_by ?? ''] ?? l.triggered_by ?? '—'}
-                </td>
-                <td className="px-4 py-3 text-right font-mono text-xs text-[color:var(--color-text)]">
-                  {fmtDuration(l.duration_ms)}
-                </td>
-                <td className="px-4 py-3 text-right font-mono text-xs text-[color:var(--color-olive)]">
-                  {l.prices_updated ?? 0}
-                </td>
-                <td className="px-4 py-3 text-right font-mono text-xs text-[color:var(--color-muted)]">
-                  {l.prices_unchanged ?? 0}
-                </td>
-                <td className="px-4 py-3 text-right font-mono text-xs text-[color:var(--color-muted)]">
-                  {l.prices_missing ?? 0}
-                </td>
-                <td className="px-4 py-3 text-right font-mono text-xs">
-                  <span
-                    className={
-                      (l.suggestions_added ?? 0) > 0 ? 'font-semibold text-[color:var(--color-olive)]' : 'text-[color:var(--color-muted)]'
-                    }
-                  >
-                    {l.suggestions_added ?? 0}
-                  </span>
-                </td>
-                <td className="px-4 py-3">
-                  <span
-                    className={`inline-block rounded-[2px] px-2 py-1 font-mono text-[10px] uppercase tracking-wider ${STATUS_BADGE[l.status]}`}
-                  >
-                    {l.status}
-                  </span>
-                  {l.error_summary && (
-                    <p className="mt-1 text-[11px] text-[#c00]" title={l.error_summary}>
-                      {l.error_summary.slice(0, 60)}
-                      {l.error_summary.length > 60 ? '…' : ''}
-                    </p>
-                  )}
-                </td>
+      <div style={{ padding: '24px 32px', maxWidth: '1400px', width: '100%' }}>
+        <div style={{
+          background: '#FFFFFF',
+          border: `1px solid ${COLORS.border}`,
+          borderRadius: '8px',
+          overflow: 'hidden',
+        }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+            <thead>
+              <tr style={{
+                background: COLORS.surface,
+                borderBottom: `1px solid ${COLORS.border}`,
+                textAlign: 'left',
+              }}>
+                <Th>Čas</Th>
+                <Th>Trigger</Th>
+                <Th align="right">Trvání</Th>
+                <Th align="right">Cen ↻</Th>
+                <Th align="right">Nové návrhy</Th>
+                <Th>Stav</Th>
               </tr>
-            ))}
-            {logs.length === 0 && (
-              <tr>
-                <td colSpan={8} className="px-4 py-12 text-center text-sm text-[color:var(--color-muted)]">
-                  Žádné runy zatím. Spusť sync ručně tlačítkem výše.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {logs.map(l => {
+                const badge = STATUS_BADGE[l.status]
+                return (
+                  <tr key={l.id} style={{ borderBottom: `1px solid ${COLORS.border}` }}>
+                    <Td>
+                      <span style={{ fontFamily: 'ui-monospace, monospace', color: COLORS.text }}>
+                        {fmtTime(l.started_at)}
+                      </span>
+                    </Td>
+                    <Td>
+                      <span style={{ color: COLORS.textMuted, fontSize: '12px' }}>{l.triggered_by ?? '—'}</span>
+                    </Td>
+                    <Td align="right">
+                      <span style={{ fontFamily: 'ui-monospace, monospace', color: COLORS.textMuted }}>
+                        {fmtDuration(l.duration_ms)}
+                      </span>
+                    </Td>
+                    <Td align="right">
+                      <span style={{ fontFamily: 'ui-monospace, monospace', color: COLORS.text }}>
+                        {l.prices_updated ?? 0}
+                      </span>
+                    </Td>
+                    <Td align="right">
+                      <span style={{
+                        fontFamily: 'ui-monospace, monospace',
+                        fontWeight: (l.suggestions_added ?? 0) > 0 ? 600 : 400,
+                        color: (l.suggestions_added ?? 0) > 0 ? COLORS.olive : COLORS.textMuted,
+                      }}>
+                        {l.suggestions_added ?? 0}
+                      </span>
+                    </Td>
+                    <Td>
+                      <span style={{
+                        fontSize: '10px',
+                        fontWeight: 600,
+                        letterSpacing: '0.05em',
+                        padding: '2px 6px',
+                        borderRadius: '4px',
+                        background: badge.bg,
+                        color: badge.color,
+                        textTransform: 'uppercase',
+                      }}>{l.status}</span>
+                      {l.error_summary && (
+                        <span
+                          title={l.error_summary}
+                          style={{
+                            display: 'block',
+                            marginTop: '2px',
+                            fontSize: '11px',
+                            color: COLORS.danger,
+                          }}
+                        >{l.error_summary.slice(0, 50)}{l.error_summary.length > 50 ? '…' : ''}</span>
+                      )}
+                    </Td>
+                  </tr>
+                )
+              })}
+              {logs.length === 0 && (
+                <tr>
+                  <td colSpan={6} style={{
+                    padding: '40px 16px',
+                    textAlign: 'center',
+                    fontSize: '13px',
+                    color: COLORS.textSubtle,
+                  }}>
+                    Žádné runy zatím. Spusť sync ručně tlačítkem nahoře.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
     </>
   )
+}
+
+function Th({ children, align }: { children: React.ReactNode; align?: 'left' | 'right' }) {
+  return (
+    <th style={{
+      padding: '10px 14px',
+      fontSize: '11px',
+      fontWeight: 500,
+      color: COLORS.textSubtle,
+      textTransform: 'uppercase',
+      letterSpacing: '0.04em',
+      textAlign: align ?? 'left',
+    }}>{children}</th>
+  )
+}
+
+function Td({ children, align }: { children: React.ReactNode; align?: 'left' | 'right' }) {
+  return <td style={{ padding: '12px 14px', verticalAlign: 'top', textAlign: align ?? 'left' }}>{children}</td>
 }

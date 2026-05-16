@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
       output_tokens: result.output_tokens,
       cost_usd: result.cost_usd,
       warnings: result.warnings,
-      edit_url: `/admin/products/${result.product_id}/edit/`,
+      edit_url: `/admin/preview/${result.product_id}/`,
     })
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'generation failed'

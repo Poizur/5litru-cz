@@ -1096,21 +1096,20 @@ Výstup je VŽDY JSON v code blocku — nic jiného.`,
   // 12. Email notification
   const recipient = process.env.ADMIN_NOTIFICATION_EMAIL
   if (recipient) {
-    const editUrl = `https://5litru.cz/admin/products/${productId}/edit/`
+    const editUrl = `https://5litru.cz/admin/preview/${productId}/`
     const html = renderAdminAlertHtml({
-      title: `AI draft připraven: ${s.name.slice(0, 50)}`,
+      title: `Nový draft připraven: ${s.name.slice(0, 50)}`,
       bodyHtml: `
-        <p>Nový AI draft recenze čeká na kontrolu a schválení před publikací.</p>
+        <p>Nový AI draft čeká na kontrolu. Otevři náhled, projdi recenzi 1:1 jak se zobrazí na webu, a buď ji publikuj, nebo přegeneruj.</p>
         <ul style="padding-left:20px;margin:12px 0;">
           <li><strong>Produkt:</strong> ${s.name}</li>
-          <li><strong>Slug:</strong> <code>${slug}</code> / <code>${reviewSlug}</code></li>
-          <li><strong>Náklady:</strong> $${costUsd.toFixed(4)} (${inputTokens}+${outputTokens} tokenů)</li>
+          <li><strong>Slug:</strong> <code>${reviewSlug}</code></li>
           ${warnings.length ? `<li style="color:#8a5a20;"><strong>Varování:</strong> ${warnings.join(', ')}</li>` : ''}
         </ul>`,
-      ctaLabel: 'Otevřít draft →',
+      ctaLabel: 'Otevřít náhled →',
       ctaUrl: editUrl,
     })
-    await sendViaResend(recipient, `[5litru.cz] AI draft: ${s.name.slice(0, 40)}`, html, {
+    await sendViaResend(recipient, `[5litru.cz] Nový draft: ${s.name.slice(0, 40)}`, html, {
       replyTo: process.env.RESEND_REPLY_TO,
       tag: 'ai-draft-ready',
     }).catch(e => console.warn('[ai-review] email failed:', e))
@@ -1125,4 +1124,148 @@ Výstup je VŽDY JSON v code blocku — nic jiného.`,
   }
 
   return { product_id: productId, job_id: jobId, slug, review_slug: reviewSlug, input_tokens: inputTokens, output_tokens: outputTokens, cost_usd: costUsd, warnings }
+}
+
+// ─────────────────────────────────────────────────────────────
+// Regenerate — re-runs the pipeline for an existing draft (or published) product,
+// honouring admin's free-text instructions ("kratší úvod", "víc o aciditě", …).
+// Reuses the original olivator_suggestion as canonical product data. UPDATEs
+// the product row in-place — slug / id / review_slug stay stable, so any
+// existing affiliate redirects keep working.
+// ─────────────────────────────────────────────────────────────
+
+export async function regenerateAiReviewDraft(
+  productId: string,
+  extraInstructions: string,
+): Promise<ReviewDraftResult> {
+  const warnings: string[] = []
+
+  // 1. Load existing product (id, slug, hero image — needed to keep them stable)
+  const { data: existingRaw, error: prodErr } = await supabaseAdmin
+    .from('products')
+    .select('id, slug, review_slug, hero_image, status')
+    .eq('id', productId)
+    .single()
+  if (prodErr || !existingRaw) throw new Error(`Product not found: ${productId}`)
+  const existing = existingRaw as { id: string; slug: string; review_slug: string | null; hero_image: string | null; status: string }
+
+  // 2. Find original olivator_suggestion — required for full prompt context
+  const { data: sugRaw } = await supabaseAdmin
+    .from('olivator_suggestions')
+    .select('*')
+    .eq('imported_product_id', productId)
+    .maybeSingle()
+  if (!sugRaw) {
+    throw new Error('Nelze přegenerovat — nenalezen původní Olivator návrh. Tento produkt byl pravděpodobně vložen ručně (seed).')
+  }
+  const s = sugRaw as unknown as SuggestionRow
+
+  // 3. Load retailer for affiliate URL
+  const { data: retailerRaw } = await supabaseAdmin
+    .from('retailers')
+    .select('*')
+    .eq('slug', s.primary_retailer_slug)
+    .maybeSingle()
+  const retailer = retailerRaw as unknown as Retailer | null
+  const affiliateUrl = retailer
+    ? buildAffiliateUrl(s.primary_offer_url, retailer)
+    : s.primary_offer_url
+
+  // 4. Re-scrape eshop + style samples (parallel)
+  const [eshop, styleSamples] = await Promise.all([
+    scrapeEshopPage(s.primary_offer_url),
+    loadStyleSamples(),
+  ])
+  if (!eshop.description) warnings.push('eshop scrape: no description')
+
+  // 5. Heureka (sequential — needs delays)
+  let heureka: HeurekaScrape | null = null
+  try {
+    heureka = await scrapeHeureka(s.name)
+    if (!heureka) warnings.push('heureka: no data')
+  } catch {
+    warnings.push('heureka: scrape failed')
+  }
+
+  // 6. Build prompt + append admin instructions
+  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+  let prompt = buildReviewPrompt(s, eshop, heureka, styleSamples)
+  if (extraInstructions.trim()) {
+    prompt += `\n\nDODATEČNÉ INSTRUKCE OD ADMINA (vyšší priorita než výchozí pokyny):\n${extraInstructions.trim()}`
+  }
+
+  const message = await anthropic.messages.create({
+    model: 'claude-sonnet-4-5',
+    max_tokens: 6000,
+    system: `Jsi zkušený copywriter pro 5litru.cz — český niche web o 5L olivových olejích.
+Píšeš objektivní, detailní recenze v hlasu informovaného nadšence.
+Výstup je VŽDY JSON v code blocku — nic jiného.`,
+    messages: [{ role: 'user', content: prompt }],
+  })
+
+  const rawOutput = message.content.map(b => (b.type === 'text' ? b.text : '')).join('')
+  const inputTokens = message.usage.input_tokens
+  const outputTokens = message.usage.output_tokens
+  const costUsd = inputTokens * COST_INPUT + outputTokens * COST_OUTPUT
+
+  // 7. Parse + assemble HTML — keep existing slug + hero image (no re-download)
+  const content = parseReviewContent(rawOutput)
+  const slug = existing.slug
+  const reviewSlug = existing.review_slug ?? `${slug}-recenze`
+  const heroImagePath = existing.hero_image
+
+  const htmlBody = buildReviewHtml(s, content, heureka, affiliateUrl, heroImagePath, slug)
+  const mdx = buildMdx(s, content, htmlBody, reviewSlug, affiliateUrl)
+
+  // 8. UPDATE existing product (no INSERT — keeps id/slug stable)
+  const { error: updateErr } = await supabaseAdmin
+    .from('products')
+    .update({
+      review_mdx: mdx,
+      review_frontmatter: {
+        title: content.title,
+        description: content.description,
+        slug: reviewSlug,
+        ai_generated: true,
+      },
+      // Reset to draft so user can re-publish after reviewing
+      status: 'draft',
+      published_at: null,
+    })
+    .eq('id', productId)
+  if (updateErr) throw new Error(`DB update failed: ${updateErr.message}`)
+
+  // 9. Log ai_jobs (audit trail — see what instructions were used)
+  const { data: jobRow } = await supabaseAdmin
+    .from('ai_jobs')
+    .insert({
+      product_id: productId,
+      job_type: 'review_draft',
+      model: 'claude-sonnet-4-5',
+      input: {
+        suggestion_id: s.olivator_product_id,
+        eshop_specs: eshop.specs.length,
+        heureka_reviews: heureka?.reviews.length ?? 0,
+        regeneration: true,
+        admin_instructions: extraInstructions,
+      },
+      output: { slug, review_slug: reviewSlug, input_tokens: inputTokens, output_tokens: outputTokens },
+      status: 'completed',
+      cost_usd: costUsd,
+      completed_at: new Date().toISOString(),
+    })
+    .select('id')
+    .single()
+  const jobId = (jobRow as { id: string } | null)?.id ?? 'unknown'
+
+  return {
+    product_id: productId,
+    job_id: jobId,
+    slug,
+    review_slug: reviewSlug,
+    input_tokens: inputTokens,
+    output_tokens: outputTokens,
+    cost_usd: costUsd,
+    warnings,
+  }
 }
