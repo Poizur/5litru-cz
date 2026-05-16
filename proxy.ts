@@ -58,7 +58,9 @@ export async function proxy(request: NextRequest) {
     const cookie = request.cookies.get(COOKIE_NAME)
     const valid = await isValidSession(cookie?.value, secret)
     if (!valid) {
-      const url = new URL('/admin/login', request.url)
+      const url = request.nextUrl.clone()
+      url.pathname = '/admin/login'
+      url.search = ''
       url.searchParams.set('redirect', pathname)
       return NextResponse.redirect(url)
     }
