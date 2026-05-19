@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { COLORS } from '../../_components/tokens'
 
@@ -9,7 +9,7 @@ interface Props {
   reviewSlug: string | null
 }
 
-type Phase = 'idle' | 'publishing' | 'deleting' | 'regenerating' | 'published'
+type Phase = 'idle' | 'publishing' | 'deleting' | 'regenerating' | 'uploading' | 'published'
 
 export function PreviewToolbar({ productId, status, reviewSlug }: Props) {
   const router = useRouter()
@@ -17,10 +17,46 @@ export function PreviewToolbar({ productId, status, reviewSlug }: Props) {
   const [showRegen, setShowRegen] = useState(false)
   const [showPublish, setShowPublish] = useState(false)
   const [showDelete, setShowDelete] = useState(false)
+  const [showImage, setShowImage] = useState(false)
   const [toast, setToast] = useState<{ msg: string; kind: 'ok' | 'err' } | null>(null)
 
   const isPublished = status === 'published'
   const busy = phase !== 'idle' && phase !== 'published'
+
+  function reloadIframe() {
+    const iframe = document.querySelector('iframe') as HTMLIFrameElement | null
+    if (!iframe) return
+    const src = iframe.src
+    iframe.src = ''
+    setTimeout(() => { iframe.src = src }, 50)
+  }
+
+  async function doUploadImage(file: File) {
+    setShowImage(false)
+    setPhase('uploading')
+    try {
+      const form = new FormData()
+      form.append('file', file)
+      const res = await fetch(`/api/admin/products/${productId}/hero-image`, {
+        method: 'POST',
+        body: form,
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error ?? 'Upload failed')
+      setToast({
+        msg: data.mdx_replaced
+          ? 'Fotka nahrána a aktualizována i v recenzi.'
+          : 'Fotka nahrána.',
+        kind: 'ok',
+      })
+      setPhase('idle')
+      router.refresh()
+      reloadIframe()
+    } catch (e) {
+      setPhase('idle')
+      setToast({ msg: e instanceof Error ? e.message : 'Upload selhal', kind: 'err' })
+    }
+  }
 
   async function doPublish() {
     setShowPublish(false)
@@ -69,13 +105,7 @@ export function PreviewToolbar({ productId, status, reviewSlug }: Props) {
       setToast({ msg: `Vygenerováno znovu (${data.cost_usd?.toFixed(3) ?? '—'} $).`, kind: 'ok' })
       setPhase('idle')
       router.refresh()
-      // Force iframe reload
-      const iframe = document.querySelector('iframe') as HTMLIFrameElement | null
-      if (iframe) {
-        const src = iframe.src
-        iframe.src = ''
-        setTimeout(() => { iframe.src = src }, 50)
-      }
+      reloadIframe()
     } catch (e) {
       setPhase('idle')
       setToast({ msg: e instanceof Error ? e.message : 'Regenerace selhala', kind: 'err' })
@@ -93,6 +123,11 @@ export function PreviewToolbar({ productId, status, reviewSlug }: Props) {
             style={btnSecondary}
           >Otevřít na webu ↗</a>
         )}
+        <button
+          onClick={() => setShowImage(true)}
+          disabled={busy}
+          style={btnSecondary}
+        >Vyměnit fotku</button>
         <button
           onClick={() => setShowRegen(true)}
           disabled={busy}
@@ -124,6 +159,14 @@ export function PreviewToolbar({ productId, status, reviewSlug }: Props) {
 
       {phase === 'regenerating' && <LoadingOverlay label="Generuji novou verzi — může trvat 30–60 s…" />}
       {phase === 'publishing' && <LoadingOverlay label="Publikuji recenzi…" />}
+      {phase === 'uploading' && <LoadingOverlay label="Nahrávám fotku…" />}
+
+      {showImage && (
+        <ImageUploadModal
+          onCancel={() => setShowImage(false)}
+          onSubmit={doUploadImage}
+        />
+      )}
 
       {showRegen && (
         <RegenerateModal
@@ -168,6 +211,137 @@ export function PreviewToolbar({ productId, status, reviewSlug }: Props) {
 }
 
 // ─────── UI bits ───────
+
+function ImageUploadModal({
+  onCancel,
+  onSubmit,
+}: {
+  onCancel: () => void
+  onSubmit: (file: File) => void
+}) {
+  const inputRef = useRef<HTMLInputElement>(null)
+  const [file, setFile] = useState<File | null>(null)
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const [error, setError] = useState('')
+
+  function handleFile(f: File | null | undefined) {
+    if (!f) return
+    if (!['image/webp', 'image/jpeg', 'image/png'].includes(f.type)) {
+      setError('Povolen je webp, jpg nebo png.')
+      return
+    }
+    if (f.size > 5 * 1024 * 1024) {
+      setError(`Soubor je ${(f.size / 1024 / 1024).toFixed(1)} MB, limit 5 MB.`)
+      return
+    }
+    setError('')
+    setFile(f)
+    setPreviewUrl(URL.createObjectURL(f))
+  }
+
+  return (
+    <Modal onClose={onCancel}>
+      <h2 style={{
+        fontSize: '17px',
+        fontWeight: 600,
+        color: COLORS.text,
+        margin: '0 0 4px',
+        letterSpacing: '-0.01em',
+      }}>Vyměnit hero fotku</h2>
+      <p style={{
+        fontSize: '13px',
+        color: COLORS.textSubtle,
+        margin: '0 0 16px',
+      }}>
+        webp / jpg / png, max 5 MB. Doporučeno čtverec ~800 px.
+        Fotka se uloží do Supabase Storage a zaktualizuje i v MDX recenze.
+      </p>
+
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/webp,image/jpeg,image/png"
+        onChange={e => handleFile(e.target.files?.[0])}
+        style={{ display: 'none' }}
+      />
+
+      <div
+        onClick={() => inputRef.current?.click()}
+        onDragOver={e => { e.preventDefault() }}
+        onDrop={e => {
+          e.preventDefault()
+          handleFile(e.dataTransfer.files?.[0])
+        }}
+        style={{
+          border: `2px dashed ${COLORS.border}`,
+          borderRadius: '8px',
+          padding: previewUrl ? '12px' : '32px 16px',
+          textAlign: 'center',
+          cursor: 'pointer',
+          background: COLORS.surface,
+          transition: 'border-color 0.15s',
+        }}
+        onMouseEnter={e => { e.currentTarget.style.borderColor = COLORS.olive }}
+        onMouseLeave={e => { e.currentTarget.style.borderColor = COLORS.border }}
+      >
+        {previewUrl ? (
+          /* eslint-disable-next-line @next/next/no-img-element */
+          <img
+            src={previewUrl}
+            alt="Náhled"
+            style={{
+              maxWidth: '100%',
+              maxHeight: '240px',
+              objectFit: 'contain',
+              borderRadius: '4px',
+            }}
+          />
+        ) : (
+          <>
+            <div style={{ fontSize: '13px', color: COLORS.text, marginBottom: '4px', fontWeight: 500 }}>
+              Klikni nebo přetáhni fotku sem
+            </div>
+            <div style={{ fontSize: '12px', color: COLORS.textSubtle }}>
+              webp · jpg · png · max 5 MB
+            </div>
+          </>
+        )}
+      </div>
+
+      {file && (
+        <div style={{
+          fontSize: '12px',
+          color: COLORS.textMuted,
+          margin: '8px 0 0',
+        }}>
+          {file.name} · {(file.size / 1024).toFixed(0)} KB
+        </div>
+      )}
+
+      {error && (
+        <div style={{
+          fontSize: '12px',
+          color: COLORS.danger,
+          margin: '8px 0 0',
+        }}>{error}</div>
+      )}
+
+      <div style={{
+        display: 'flex',
+        gap: '8px',
+        justifyContent: 'flex-end',
+        marginTop: '20px',
+      }}>
+        <button onClick={onCancel} style={btnSecondary}>Zrušit</button>
+        <button
+          onClick={() => file && onSubmit(file)}
+          disabled={!file}
+          style={{ ...btnPrimary, opacity: file ? 1 : 0.5 }}
+        >Nahrát</button>
+      </div>
+    </Modal>
+  )
+}
 
 function RegenerateModal({
   onCancel,
