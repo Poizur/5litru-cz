@@ -154,6 +154,9 @@ nav {
 .comparison-table tbody tr.top-pick { background:#fffbf3; }
 .comparison-table tbody tr.top-pick:hover { background:#fff5e0; }
 .comparison-table td { padding:12px 14px; vertical-align:middle; }
+.t-product-cell { display:flex; align-items:center; gap:14px; }
+.t-thumb { width:56px; height:56px; border-radius:4px; background:var(--olive-pale); flex-shrink:0; object-fit:contain; padding:4px; border:1px solid var(--border); }
+.t-product-text { min-width:0; }
 .t-name { font-family:'Cormorant Garamond',serif; font-size:16px; font-weight:700; color:var(--dark); display:block; margin-bottom:2px; line-height:1.1; }
 .t-region { font-size:13px; color:var(--muted); }
 .t-badge { display:inline-block; padding:2px 8px; border-radius:2px; font-size:10px; font-weight:600; letter-spacing:0.3px; }
@@ -341,137 +344,7 @@ footer { background:var(--dark); padding:52px 40px 36px; }
     <h2 class="prose" style="font-family:'Cormorant Garamond',serif;font-size:clamp(26px,3.5vw,38px);font-weight:600;color:var(--dark);margin:12px 0 8px;">Srovnávací tabulka <em style="font-style:italic;color:var(--olive2);">10 olejů</em></h2>
     <p class="prose" style="font-size:14px;color:var(--muted);margin-bottom:20px;">Seřazeno od nejnižší acidity. ↓ nižší acidita = kvalitnější olej.</p>
 
-    <div class="comparison-wrap reveal">
-      <table class="comparison-table">
-        <thead>
-          <tr>
-            <th>Produkt</th>
-            <th>Region</th>
-            <th>Acidita</th>
-            <th>Cena</th>
-            <th>Kč/litr</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr class="top-pick">
-            <td>
-              <span class="t-name">SITIA Gold 0,2 %</span>
-              <span class="t-region">Sitia Lassithi · Kréta</span>
-              <br><span class="t-badge badge-acid">Nejnižší acidita</span>
-            </td>
-            <td>Kréta</td>
-            <td><span class="t-acid acid-low">0,26 %</span></td>
-            <td><span class="t-price">1 590 Kč</span></td>
-            <td><span class="t-price-per">318 Kč/l</span></td>
-            <td><a href="/go/sitia" class="btn-table" rel="nofollow sponsored">Koupit →</a></td>
-          </tr>
-          <tr class="top-pick">
-            <td>
-              <span class="t-name"><a href="/neotis-manaki-recenze/" style="color:var(--dark);text-decoration:none;">Neotis Manaki</a></span>
-              <span class="t-region">Peloponés</span>
-              <br><span class="t-badge badge-taste">Nejjemnější chuť</span>
-            </td>
-            <td>Peloponés</td>
-            <td><span class="t-acid acid-low"><span style="font-family:'Jost',sans-serif;">≤</span> 0,3 %</span></td>
-            <td><span class="t-price">2 090 Kč</span></td>
-            <td><span class="t-price-per">418 Kč/l</span></td>
-            <td><a href="/go/neotis" class="btn-table" rel="nofollow sponsored">Koupit →</a></td>
-          </tr>
-          <tr>
-            <td>
-              <span class="t-name"><a href="/evoilino-korfu-recenze/" style="color:var(--dark);text-decoration:none;">Evoilino Korfu</a></span>
-              <span class="t-region">ostrov Korfu</span>
-            </td>
-            <td>Korfu</td>
-            <td><span class="t-acid acid-low">0,32 %</span></td>
-            <td><span class="t-price">2 099 Kč</span></td>
-            <td><span class="t-price-per">420 Kč/l</span></td>
-            <td><a href="/go/evoilino" class="btn-table" rel="nofollow sponsored">Koupit →</a></td>
-          </tr>
-          <tr>
-            <td>
-              <span class="t-name"><a href="/nikolos-kalamata-recenze/" style="color:var(--dark);text-decoration:none;">Nikolos Kalamata</a></span>
-              <span class="t-region">Messinia · Peloponés</span>
-            </td>
-            <td>Peloponés</td>
-            <td><span class="t-acid acid-low">0,37 %</span></td>
-            <td><span class="t-price">1 690 Kč</span></td>
-            <td><span class="t-price-per">338 Kč/l</span></td>
-            <td><a href="/go/nikolos" class="btn-table" rel="nofollow sponsored">Koupit →</a></td>
-          </tr>
-          <tr>
-            <td>
-              <span class="t-name"><a href="/petromilos-zakynthos-recenze/" style="color:var(--dark);text-decoration:none;">Petromilos Zakynthos</a></span>
-              <span class="t-region">ostrov Zakynthos</span>
-            </td>
-            <td>Zakynthos</td>
-            <td><span class="t-acid acid-low">0,36 %</span></td>
-            <td><span class="t-price">1 490 Kč</span></td>
-            <td><span class="t-price-per">298 Kč/l</span></td>
-            <td><a href="/go/petromilos" class="btn-table" rel="nofollow sponsored">Koupit →</a></td>
-          </tr>
-          <tr>
-            <td>
-              <span class="t-name">Orino Sitia P.D.O.</span>
-              <span class="t-region">Sitia · Kréta</span>
-              <br><span class="t-badge badge-new">P.D.O. označení</span>
-            </td>
-            <td>Kréta</td>
-            <td><span class="t-acid acid-mid"><span style="font-family:'Jost',sans-serif;">≤</span> 0,39 %</span></td>
-            <td><span class="t-price">1 590 Kč</span></td>
-            <td><span class="t-price-per">318 Kč/l</span></td>
-            <td><a href="/go/orino" class="btn-table" rel="nofollow sponsored">Koupit →</a></td>
-          </tr>
-          <tr>
-            <td>
-              <span class="t-name"><a href="/erato-kalamata-recenze/" style="color:var(--dark);text-decoration:none;">Erato Kalamata</a></span>
-              <span class="t-region">Messinia · Peloponés</span>
-            </td>
-            <td>Peloponés</td>
-            <td><span class="t-acid acid-mid">0,42 %</span></td>
-            <td><span class="t-price">1 549 Kč</span></td>
-            <td><span class="t-price-per">310 Kč/l</span></td>
-            <td><a href="/go/erato" class="btn-table" rel="nofollow sponsored">Koupit →</a></td>
-          </tr>
-          <tr class="top-pick">
-            <td>
-              <span class="t-name">Motakis Kréta</span>
-              <span class="t-region">Kréta · Koroneiki</span>
-              <br><span class="t-badge badge-best">Nejprodávanější</span>
-            </td>
-            <td>Kréta</td>
-            <td><span class="t-acid acid-mid"><span style="font-family:'Jost',sans-serif;">≤</span> 0,8 %</span></td>
-            <td><span class="t-price">1 290 Kč</span></td>
-            <td><span class="t-price-per">258 Kč/l</span></td>
-            <td><a href="/go/motakis" class="btn-table" rel="nofollow sponsored">Koupit →</a></td>
-          </tr>
-          <tr>
-            <td>
-              <span class="t-name"><a href="/theoni-kalamata-recenze/" style="color:var(--dark);text-decoration:none;">Theoni Kalamata</a></span>
-              <span class="t-region">Arcadia · Peloponés</span>
-            </td>
-            <td>Peloponés</td>
-            <td><span class="t-acid acid-high"><span style="font-family:'Jost',sans-serif;">≤</span> 0,8 %</span></td>
-            <td><span class="t-price">1 390 Kč</span></td>
-            <td><span class="t-price-per">278 Kč/l</span></td>
-            <td><a href="/go/theoni" class="btn-table" rel="nofollow sponsored">Koupit →</a></td>
-          </tr>
-          <tr>
-            <td>
-              <span class="t-name">Pallada Kréta</span>
-              <span class="t-region">Chania · Kréta</span>
-              <br><span class="t-badge badge-new">Novinka 2026</span>
-            </td>
-            <td>Kréta</td>
-            <td><span class="t-acid acid-high">0,61–0,8 %</span></td>
-            <td><span class="t-price">1 549 Kč</span></td>
-            <td><span class="t-price-per">310 Kč/l</span></td>
-            <td><a href="/go/pallada" class="btn-table" rel="nofollow sponsored">Koupit →</a></td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
+    <!-- @DYNAMIC_COMPARISON_TABLE -->
     <p class="prose" style="font-size:12px;color:var(--muted);margin-top:8px;">
       💡 Ceny jsou orientační — vždy ověřte aktuální cenu před objednávkou. Zvýrazněné řádky = top doporučení dle kategorie.
     </p>

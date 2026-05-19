@@ -62,6 +62,7 @@ interface ReviewContent {
   description: string
   schema_review_body: string
   schema_rating: number
+  hero_alt: string
   intro_heading: string
   intro: string
   pros: string[]
@@ -512,6 +513,7 @@ Vrať POUZE JSON v code blocku (\`\`\`json ... \`\`\`):
   "description": "(150-160 znaků, meta)",
   "schema_review_body": "(2-3 věty bez HTML pro schema.org)",
   "schema_rating": 4.2,
+  "hero_alt": "(SEO ALT text pro hero fotku produktu — max 125 znaků, popíše barvu obalu / typ balení / značku / region. NE 'olivový olej' jako jediné slovo. Příklad: 'Plechový kanystr Motakis Kréta — extra panenský olivový olej z Koroneiki, 5 litrů, žluto-zelená etiketa')",
   "intro_heading": "(kreativní H2)",
   "intro": "<p>...</p><p>...</p><p>...</p>",
   "pros": ["max 4 výhody"],
@@ -686,7 +688,7 @@ function buildReviewHtml(
       </div>
     </div>
     <div class="hero-product-img">
-      <img src="${heroImgSrc}" alt="${s.name}" onerror="this.style.display='none'">
+      <img src="${heroImgSrc}" alt="${escapeAttr(c.hero_alt || s.name)}" onerror="this.style.display='none'">
     </div>
   </div>
 </section>
@@ -752,7 +754,7 @@ function buildReviewHtml(
     <aside class="sidebar">
       <div class="sidebar-card">
         <div class="sidebar-card-img">
-          <img src="${heroImgSrc}" alt="${s.name}" onerror="this.style.opacity='0'">
+          <img src="${heroImgSrc}" alt="${escapeAttr(c.hero_alt || s.name)}" onerror="this.style.opacity='0'">
         </div>
         <div class="sidebar-card-body">
           <div class="sidebar-product-name">${s.name.split(' ').slice(0, 3).join(' ')}</div>
@@ -920,6 +922,51 @@ async function downloadHeroImage(imageUrl: string, slug: string): Promise<string
   }
 }
 
+// Download hero image from Olivator (or any URL) and upload it to our own
+// Supabase Storage 'product-images' bucket. SEO win — Google sees images
+// hosted on our domain (well, our subdomain) instead of Olivator's.
+// Returns the public URL on our bucket, or null on failure.
+async function uploadHeroToOurBucket(imageUrl: string, slug: string): Promise<string | null> {
+  try {
+    const res = await fetch(imageUrl, { signal: AbortSignal.timeout(15_000) })
+    if (!res.ok) throw new Error(`fetch source HTTP ${res.status}`)
+    const contentType = res.headers.get('content-type') ?? ''
+    const ext = contentType.includes('webp') ? 'webp'
+      : contentType.includes('png') ? 'png'
+      : contentType.includes('jpeg') || contentType.includes('jpg') ? 'jpg'
+      : (imageUrl.match(/\.(webp|jpg|jpeg|png)/i)?.[1]?.toLowerCase()) ?? 'webp'
+    const mime = ext === 'webp' ? 'image/webp'
+      : ext === 'png' ? 'image/png'
+      : 'image/jpeg'
+    const objectKey = `${slug}.${ext}`
+    const buffer = Buffer.from(await res.arrayBuffer())
+
+    const { error: uploadErr } = await supabaseAdmin
+      .storage
+      .from('product-images')
+      .upload(objectKey, buffer, {
+        contentType: mime,
+        upsert: true,
+        cacheControl: '3600',
+      })
+    if (uploadErr) throw new Error(`upload: ${uploadErr.message}`)
+
+    const { data: pub } = supabaseAdmin.storage.from('product-images').getPublicUrl(objectKey)
+    return `${pub.publicUrl}?v=${Date.now()}`
+  } catch (e) {
+    console.warn('[ai-review] upload to our bucket failed:', (e as Error).message)
+    return null
+  }
+}
+
+function escapeAttr(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+}
+
 // ─────────────────────────────────────────────────────────────
 // Slug helpers (same logic as suggestions/[id]/import/route.ts)
 // ─────────────────────────────────────────────────────────────
@@ -1000,18 +1047,25 @@ export async function generateAiReviewDraft(suggestionId: string): Promise<Revie
     warnings.push('heureka: scrape failed')
   }
 
-  // 5. Resolve slugs. Hero image — use the Olivator Supabase storage URL
-  // directly (it's a stable public CDN), instead of downloading to /public/.
-  // Railway has an ephemeral filesystem: files written at runtime by
-  // downloadHeroImage() disappear on the next deploy, leaving a broken
-  // <img> tag and a stale hero_image path in the DB.
+  // 5. Resolve slugs + upload hero image to our own Supabase bucket.
+  // SEO ownership — Google sees images on our domain, not Olivator's.
+  // If the upload fails we fall back to the Olivator URL so the page
+  // still has a hero (rather than a broken <img>).
   const baseSlug = buildSlug(s.olivator_slug)
   const [slug, reviewSlug] = await Promise.all([
     resolveUniqueSlug(baseSlug),
     resolveUniqueReviewSlug(`${baseSlug}-recenze`),
   ])
-  const heroImagePath = s.image_url ?? null
-  if (!heroImagePath) warnings.push('hero image: olivator URL missing')
+  let heroImagePath: string | null = null
+  if (s.image_url) {
+    heroImagePath = await uploadHeroToOurBucket(s.image_url, baseSlug)
+    if (!heroImagePath) {
+      warnings.push('hero image: upload to our bucket failed, falling back to olivator URL')
+      heroImagePath = s.image_url
+    }
+  } else {
+    warnings.push('hero image: olivator URL missing')
+  }
 
   // 6. Call Claude
   const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
@@ -1065,6 +1119,7 @@ Výstup je VŽDY JSON v code blocku — nic jiného.`,
         title: content.title,
         description: content.description,
         slug: reviewSlug,
+        hero_alt: content.hero_alt,
         ai_generated: true,
       },
     })
@@ -1230,6 +1285,7 @@ Výstup je VŽDY JSON v code blocku — nic jiného.`,
         title: content.title,
         description: content.description,
         slug: reviewSlug,
+        hero_alt: content.hero_alt,
         ai_generated: true,
       },
       // Reset to draft so user can re-publish after reviewing

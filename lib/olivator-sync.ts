@@ -12,6 +12,7 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
 import { supabaseAdmin } from './supabase'
 import { sendViaResend, renderAdminAlertHtml } from './email'
+import { generateAiReviewDraft } from './ai-review'
 
 export type SyncTrigger = 'cron' | 'admin_manual' | 'cli_test'
 
@@ -329,8 +330,32 @@ export async function runOlivatorSync(triggeredBy: SyncTrigger): Promise<SyncSum
     }
   }
 
+  // 4b. Auto-generate AI drafts for each brand-new suggestion. We await all
+  // generations so the cron caller (Railway) gets a complete picture and the
+  // admin's email arrives in the same flow. Each draft costs ~$0.07 and takes
+  // 30-60 s — capped by checkRateLimit() inside generateAiReviewDraft (5/h).
+  // Disable in dev via AUTO_GENERATE_DRAFTS=false.
+  let drafts_created = 0
+  if (process.env.AUTO_GENERATE_DRAFTS !== 'false' && newSuggestionsForEmail.length > 0) {
+    const results = await Promise.allSettled(
+      newSuggestionsForEmail.map((s) => generateAiReviewDraft(s.olivator_product_id)),
+    )
+    for (let i = 0; i < results.length; i++) {
+      const r = results[i]
+      if (r.status === 'fulfilled') {
+        drafts_created++
+      } else {
+        const reason = r.reason instanceof Error ? r.reason.message : String(r.reason)
+        errors.push(`auto-draft ${newSuggestionsForEmail[i].name.slice(0, 40)}: ${reason}`)
+        console.warn(`[olivator-sync] auto-draft failed:`, reason)
+      }
+    }
+  }
+
   const status: 'success' | 'partial' | 'failed' =
     errors.length === 0 ? 'success' : errors.length < 5 ? 'partial' : 'failed'
+
+  console.log(`[olivator-sync] drafts_created=${drafts_created} of ${newSuggestionsForEmail.length} new suggestions`)
 
   const summary = await finalize(
     {
@@ -341,12 +366,16 @@ export async function runOlivatorSync(triggeredBy: SyncTrigger): Promise<SyncSum
     status,
   )
 
-  // 5. Notification email (gracefully no-ops without RESEND_API_KEY)
-  try {
-    await maybeNotifyNewSuggestions(summary)
-  } catch (e) {
-    // log only — sync succeeded even if email failed
-    console.warn('[olivator-sync] email notification failed:', e)
+  // 5. Notification email — only if some suggestions failed to auto-draft
+  // (successful drafts already triggered per-draft emails via ai-review.ts).
+  // When everything auto-drafted, this email would just be noise.
+  const allDrafted = drafts_created === newSuggestionsForEmail.length
+  if (!allDrafted) {
+    try {
+      await maybeNotifyNewSuggestions(summary)
+    } catch (e) {
+      console.warn('[olivator-sync] email notification failed:', e)
+    }
   }
 
   return summary

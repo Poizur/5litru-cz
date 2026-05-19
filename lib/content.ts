@@ -85,7 +85,17 @@ export async function getPage(slug: string): Promise<ContentItem | null> {
   const r = await readMdxFile(join(PAGES_DIR, `${slug}.mdx`))
   if (!r) return null
   const kind: ContentKind = slug === 'homepage' ? 'homepage' : 'page'
-  return { kind, slug, ...r }
+
+  // Server-side injection of dynamic blocks (DB-driven). Currently:
+  //   <!-- @DYNAMIC_COMPARISON_TABLE -->  →  comparison-table HTML built
+  //                                         from published products
+  let body = r.body
+  if (body.includes('<!-- @DYNAMIC_COMPARISON_TABLE -->')) {
+    const html = await buildDynamicComparisonTable()
+    body = body.replace('<!-- @DYNAMIC_COMPARISON_TABLE -->', html)
+  }
+
+  return { kind, slug, frontmatter: r.frontmatter, body }
 }
 
 export async function getReview(reviewSlug: string): Promise<ContentItem | null> {
@@ -140,6 +150,99 @@ export async function getAllReviewSlugs(): Promise<string[]> {
 export async function getAllPublicSlugs(): Promise<string[]> {
   const [reviews] = await Promise.all([getAllReviewSlugs()])
   return [...getAllGuideSlugs(), ...getAllPageSlugs(), ...reviews]
+}
+
+// ---------- Dynamic comparison table (DB-driven) ----------
+//
+// Renders all published products as <table class="comparison-table">,
+// reusing the CSS classes already defined inside the page MDX. Sorted by
+// acidity (lowest first → quality marker). Includes a hero thumbnail next
+// to the product name; this used to be missing in the legacy static table.
+
+interface ComparisonRow {
+  slug: string
+  review_slug: string | null
+  name: string
+  origin_region: string | null
+  origin_country: string | null
+  acidity_pct: number | null
+  price_czk: number | null
+  volume_ml: number
+  hero_image: string | null
+}
+
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+}
+
+function formatAcidity(pct: number | null): { value: string; band: 'low' | 'mid' | 'high' } {
+  if (pct === null) return { value: '—', band: 'mid' }
+  const formatted = `${pct.toFixed(2).replace('.', ',')} %`
+  const band = pct <= 0.35 ? 'low' : pct <= 0.5 ? 'mid' : 'high'
+  return { value: formatted, band }
+}
+
+async function buildDynamicComparisonTable(): Promise<string> {
+  const { data, error } = await supabaseAdmin
+    .from('products')
+    .select('slug, review_slug, name, origin_region, origin_country, acidity_pct, price_czk, volume_ml, hero_image')
+    .eq('status', 'published')
+    .order('acidity_pct', { ascending: true, nullsFirst: false })
+  if (error || !data || data.length === 0) {
+    return '<!-- comparison table: no published products -->'
+  }
+
+  const rows = (data as ComparisonRow[]).map((p, i) => {
+    const liters = (p.volume_ml ?? 5000) / 1000
+    const pricePer = p.price_czk != null ? Math.round(p.price_czk / liters) : null
+    const acid = formatAcidity(p.acidity_pct)
+    const thumb = p.hero_image
+      ? `<img src="${escapeHtml(p.hero_image)}" alt="${escapeHtml(p.name)}" class="t-thumb" loading="lazy" decoding="async">`
+      : `<div class="t-thumb" aria-hidden="true"></div>`
+    const nameCell = p.review_slug
+      ? `<a href="/${p.review_slug}/" style="color:var(--dark);text-decoration:none;">${escapeHtml(p.name)}</a>`
+      : escapeHtml(p.name)
+    const region = [p.origin_region, p.origin_country].filter(Boolean).join(' · ') || '—'
+    const isTopPick = i < 3   // first 3 sorted by acidity get highlighted
+    return `<tr${isTopPick ? ' class="top-pick"' : ''}>
+            <td>
+              <div class="t-product-cell">
+                ${thumb}
+                <div class="t-product-text">
+                  <span class="t-name">${nameCell}</span>
+                  <span class="t-region">${escapeHtml(region)}</span>
+                </div>
+              </div>
+            </td>
+            <td>${escapeHtml(p.origin_region ?? p.origin_country ?? '—')}</td>
+            <td><span class="t-acid acid-${acid.band}">${acid.value}</span></td>
+            <td><span class="t-price">${p.price_czk != null ? Math.round(p.price_czk).toLocaleString('cs-CZ') + ' Kč' : '—'}</span></td>
+            <td><span class="t-price-per">${pricePer != null ? pricePer + ' Kč/l' : '—'}</span></td>
+            <td><a href="/go/${p.slug}" class="btn-table" rel="nofollow sponsored">Koupit →</a></td>
+          </tr>`
+  }).join('\n')
+
+  return `<div class="comparison-wrap reveal">
+      <table class="comparison-table">
+        <thead>
+          <tr>
+            <th>Produkt</th>
+            <th>Region</th>
+            <th>Acidita</th>
+            <th>Cena</th>
+            <th>Kč/litr</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+${rows}
+        </tbody>
+      </table>
+    </div>`
 }
 
 // Slug resolver — tries DB first (reviews), then filesystem (guides, pages).
