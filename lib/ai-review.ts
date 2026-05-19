@@ -1000,14 +1000,18 @@ export async function generateAiReviewDraft(suggestionId: string): Promise<Revie
     warnings.push('heureka: scrape failed')
   }
 
-  // 5. Download hero image (in background while building prompt)
+  // 5. Resolve slugs. Hero image — use the Olivator Supabase storage URL
+  // directly (it's a stable public CDN), instead of downloading to /public/.
+  // Railway has an ephemeral filesystem: files written at runtime by
+  // downloadHeroImage() disappear on the next deploy, leaving a broken
+  // <img> tag and a stale hero_image path in the DB.
   const baseSlug = buildSlug(s.olivator_slug)
-  const [slug, reviewSlug, heroImagePath] = await Promise.all([
+  const [slug, reviewSlug] = await Promise.all([
     resolveUniqueSlug(baseSlug),
     resolveUniqueReviewSlug(`${baseSlug}-recenze`),
-    s.image_url ? downloadHeroImage(s.image_url, baseSlug) : Promise.resolve(null),
   ])
-  if (!heroImagePath) warnings.push('hero image: download failed')
+  const heroImagePath = s.image_url ?? null
+  if (!heroImagePath) warnings.push('hero image: olivator URL missing')
 
   // 6. Call Claude
   const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })

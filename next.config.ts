@@ -82,6 +82,14 @@ const nextConfig: NextConfig = {
       { protocol: 'https', hostname: 'shop.reckonasbavi.cz' },
       { protocol: 'https', hostname: 'cdn.myshoptet.com' },
       { protocol: 'https', hostname: 'images.unsplash.com' },
+      // Olivator Supabase storage — primary source for product hero images.
+      // ai-review.ts saves image_url verbatim into products.hero_image
+      // instead of downloading (Railway FS is ephemeral, files vanish).
+      {
+        protocol: 'https',
+        hostname: 'dyaloliwynmfnpjemzrh.supabase.co',
+        pathname: '/storage/v1/object/public/**',
+      },
     ],
   },
   async redirects() {
