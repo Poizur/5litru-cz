@@ -330,23 +330,20 @@ export async function runOlivatorSync(triggeredBy: SyncTrigger): Promise<SyncSum
     }
   }
 
-  // 4b. Auto-generate AI drafts for each brand-new suggestion. We await all
-  // generations so the cron caller (Railway) gets a complete picture and the
-  // admin's email arrives in the same flow. Each draft costs ~$0.07 and takes
-  // 30-60 s — capped by checkRateLimit() inside generateAiReviewDraft (5/h).
-  // Disable in dev via AUTO_GENERATE_DRAFTS=false.
+  // 4b. Auto-generate AI drafts for each brand-new suggestion. Sequential
+  // (one at a time) so we don't OOM the Railway worker — each generation
+  // holds cheerio DOMs + image buffers + a Claude stream in memory.
+  // Each draft costs ~$0.07 and takes 30-60 s — capped by checkRateLimit()
+  // inside generateAiReviewDraft (5/h). Disable via AUTO_GENERATE_DRAFTS=false.
   let drafts_created = 0
   if (process.env.AUTO_GENERATE_DRAFTS !== 'false' && newSuggestionsForEmail.length > 0) {
-    const results = await Promise.allSettled(
-      newSuggestionsForEmail.map((s) => generateAiReviewDraft(s.olivator_product_id)),
-    )
-    for (let i = 0; i < results.length; i++) {
-      const r = results[i]
-      if (r.status === 'fulfilled') {
+    for (const s of newSuggestionsForEmail) {
+      try {
+        await generateAiReviewDraft(s.olivator_product_id)
         drafts_created++
-      } else {
-        const reason = r.reason instanceof Error ? r.reason.message : String(r.reason)
-        errors.push(`auto-draft ${newSuggestionsForEmail[i].name.slice(0, 40)}: ${reason}`)
+      } catch (e) {
+        const reason = e instanceof Error ? e.message : String(e)
+        errors.push(`auto-draft ${s.name.slice(0, 40)}: ${reason}`)
         console.warn(`[olivator-sync] auto-draft failed:`, reason)
       }
     }
