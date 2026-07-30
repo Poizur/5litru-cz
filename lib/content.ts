@@ -169,6 +169,7 @@ interface ComparisonRow {
   price_czk: number | null
   volume_ml: number
   hero_image: string | null
+  available: boolean | null  // null = column not yet migrated, treat as true
 }
 
 function escapeHtml(s: string): string {
@@ -189,14 +190,21 @@ function formatAcidity(pct: number | null): { value: string; band: 'low' | 'mid'
 async function buildDynamicComparisonTable(): Promise<string> {
   const { data, error } = await supabaseAdmin
     .from('products')
-    .select('slug, review_slug, name, origin_region, origin_country, acidity_pct, price_czk, volume_ml, hero_image')
+    .select('slug, review_slug, name, origin_region, origin_country, acidity_pct, price_czk, volume_ml, hero_image, available')
     .eq('status', 'published')
     .order('acidity_pct', { ascending: true, nullsFirst: false })
   if (error || !data || data.length === 0) {
     return '<!-- comparison table: no published products -->'
   }
 
-  const rows = (data as ComparisonRow[]).map((p, i) => {
+  // Available products first, then sold-out; within each group keep acidity order
+  const sorted = [
+    ...(data as ComparisonRow[]).filter(p => p.available !== false),
+    ...(data as ComparisonRow[]).filter(p => p.available === false),
+  ]
+
+  const rows = sorted.map((p, i) => {
+    const isAvailable = p.available !== false
     const liters = (p.volume_ml ?? 5000) / 1000
     const pricePer = p.price_czk != null ? Math.round(p.price_czk / liters) : null
     const acid = formatAcidity(p.acidity_pct)
@@ -207,8 +215,11 @@ async function buildDynamicComparisonTable(): Promise<string> {
       ? `<a href="/${p.review_slug}/" style="color:var(--dark);text-decoration:none;">${escapeHtml(p.name)}</a>`
       : escapeHtml(p.name)
     const region = [p.origin_region, p.origin_country].filter(Boolean).join(' · ') || '—'
-    const isTopPick = i < 3   // first 3 sorted by acidity get highlighted
-    return `<tr${isTopPick ? ' class="top-pick"' : ''}>
+    const isTopPick = isAvailable && i < 3
+    const ctaCell = isAvailable
+      ? `<a href="/go/${p.slug}" class="btn-table" rel="nofollow sponsored">Koupit →</a>`
+      : `<span class="badge-sold-out">Momentálně vyprodáno</span>`
+    return `<tr${isTopPick ? ' class="top-pick"' : ''}${!isAvailable ? ' class="row-sold-out"' : ''}>
             <td>
               <div class="t-product-cell">
                 ${thumb}
@@ -222,7 +233,7 @@ async function buildDynamicComparisonTable(): Promise<string> {
             <td><span class="t-acid acid-${acid.band}">${acid.value}</span></td>
             <td><span class="t-price">${p.price_czk != null ? Math.round(p.price_czk).toLocaleString('cs-CZ') + ' Kč' : '—'}</span></td>
             <td><span class="t-price-per">${pricePer != null ? pricePer + ' Kč/l' : '—'}</span></td>
-            <td><a href="/go/${p.slug}" class="btn-table" rel="nofollow sponsored">Koupit →</a></td>
+            <td>${ctaCell}</td>
           </tr>`
   }).join('\n')
 

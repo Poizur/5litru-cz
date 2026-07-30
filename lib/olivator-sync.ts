@@ -167,6 +167,8 @@ export async function runOlivatorSync(triggeredBy: SyncTrigger): Promise<SyncSum
     offers: Array<{
       product_url: string | null
       price: number | null
+      in_stock: boolean | null
+      manual_override: boolean | null
       retailer: { slug: string | null } | { slug: string | null }[] | null
     }>
   }> = []
@@ -176,7 +178,7 @@ export async function runOlivatorSync(triggeredBy: SyncTrigger): Promise<SyncSum
       .select(`
         id, slug, name, brand_slug, origin_country, origin_region, variety, type,
         volume_ml, acidity, polyphenols, olivator_score, image_url,
-        offers:product_offers(product_url, price, retailer:retailers(slug))
+        offers:product_offers(product_url, price, in_stock, manual_override, retailer:retailers(slug))
       `)
       .eq('status', 'active')
       .gte('volume_ml', VOLUME_MIN)
@@ -200,6 +202,8 @@ export async function runOlivatorSync(triggeredBy: SyncTrigger): Promise<SyncSum
     olivator_product_id: string
     product_url: string
     price: number | null
+    in_stock: boolean | null
+    manual_override: boolean | null
     retailer_slug: string | null
   }
   const offersByUrl = new Map<string, FlatOffer>()
@@ -211,16 +215,18 @@ export async function runOlivatorSync(triggeredBy: SyncTrigger): Promise<SyncSum
         olivator_product_id: p.id,
         product_url: o.product_url,
         price: o.price,
+        in_stock: o.in_stock,
+        manual_override: o.manual_override,
         retailer_slug: rs,
       })
     }
   }
 
-  // 3. Update prices on 5litru products
+  // 3. Update prices + availability on 5litru products
   let products_checked = 0, prices_updated = 0, prices_unchanged = 0, prices_missing = 0
   const { data: ourProducts, error: ourErr } = await supabaseAdmin
     .from('products')
-    .select('id, slug, product_url, price_czk')
+    .select('id, slug, product_url, price_czk, available')
     .not('product_url', 'is', null)
   if (ourErr) errors.push(`5litru products read: ${ourErr.message}`)
 
@@ -236,22 +242,33 @@ export async function runOlivatorSync(triggeredBy: SyncTrigger): Promise<SyncSum
       continue
     }
     matchedOlivatorProductIds.add(offer.olivator_product_id)
-    if (offer.price === null || offer.price === undefined) {
-      prices_unchanged++
-      continue
+
+    const updates: Record<string, unknown> = {}
+
+    // Price update
+    if (offer.price !== null && offer.price !== undefined) {
+      const newPrice = Number(offer.price)
+      const oldPrice = p.price_czk !== null && p.price_czk !== undefined ? Number(p.price_czk) : null
+      if (oldPrice !== newPrice) updates.price_czk = newPrice
     }
-    const newPrice = Number(offer.price)
-    const oldPrice = p.price_czk !== null && p.price_czk !== undefined ? Number(p.price_czk) : null
-    if (oldPrice === newPrice) {
+
+    // Availability update: available = in_stock AND NOT manual_override
+    // Treat null (column missing/old offer) as true (safe default)
+    if (offer.in_stock !== null && offer.in_stock !== undefined) {
+      const newAvailable = offer.in_stock && !(offer.manual_override ?? false)
+      if (p.available !== newAvailable) updates.available = newAvailable
+    }
+
+    if (Object.keys(updates).length === 0) {
       prices_unchanged++
       continue
     }
     const { error: upErr } = await supabaseAdmin
       .from('products')
-      .update({ price_czk: newPrice })
+      .update(updates)
       .eq('id', p.id)
     if (upErr) {
-      errors.push(`update price ${p.slug}: ${upErr.message}`)
+      errors.push(`update ${p.slug}: ${upErr.message}`)
       prices_unchanged++
     } else {
       prices_updated++

@@ -43,14 +43,12 @@ async function buildAffiliateRedirects() {
       target.searchParams.set('utm_source', 'ehub')
       target.searchParams.set('utm_medium', 'affiliate')
       target.searchParams.set('utm_campaign', retailer?.utm_campaign ?? '5litru-cz')
-      if (retailer?.ehub_tracking_hash) {
-        target.searchParams.set('ehub', retailer.ehub_tracking_hash)
-      }
-      const destination = target.toString()
-      // Two aliases per product:
-      //   /${slug}/        — canonical short link (used in current MDX)
-      //   /go/${slug}      — legacy ThirstyAffiliates pattern from WordPress;
-      //                      still referenced by migrated review pages.
+      // Server-redirect via eHub click.php so every click is recorded server-side
+      // before the browser reaches the merchant (more reliable than on-site pixel).
+      const desturl = encodeURIComponent(target.toString())
+      const destination =
+        `https://ehub.cz/system/scripts/click.php?a_aid=2f4d1556&a_bid=46f8224d` +
+        `&data1=5litru-${p.slug}&desturl=${desturl}`
       return [
         { source: `/${p.slug}/`, destination, permanent: false },
         { source: `/go/${p.slug}`, destination, permanent: false },

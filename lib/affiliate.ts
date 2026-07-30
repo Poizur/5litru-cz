@@ -1,21 +1,23 @@
 import type { Retailer } from './types'
 
-// Builds an affiliate URL by appending eHub tracking params to a retailer product URL.
-// Pattern (per PROMPT_PATCH.md §11):
-//   https://shop.reckonasbavi.cz/<path>/?utm_source=ehub&utm_medium=affiliate
-//     &utm_campaign=5litru-cz&ehub=<hash>
+// Builds an eHub server-redirect URL so every click is recorded server-side
+// before the browser reaches the merchant (more reliable than on-site pixel).
+// Format: https://ehub.cz/system/scripts/click.php?a_aid=...&a_bid=...&desturl=...
 //
-// 5litru reports are distinguished from other sites in eHub via utm_campaign.
+// The desturl carries UTM params for analytics on the merchant side.
 export function buildAffiliateUrl(
   productUrl: string,
-  retailer: Pick<Retailer, 'base_url' | 'ehub_tracking_hash' | 'utm_campaign'>
+  retailer: Pick<Retailer, 'base_url' | 'ehub_tracking_hash' | 'utm_campaign'>,
+  productSlug = ''
 ): string {
-  const url = new URL(productUrl, retailer.base_url)
-  url.searchParams.set('utm_source', 'ehub')
-  url.searchParams.set('utm_medium', 'affiliate')
-  url.searchParams.set('utm_campaign', retailer.utm_campaign || '5litru-cz')
-  if (retailer.ehub_tracking_hash) {
-    url.searchParams.set('ehub', retailer.ehub_tracking_hash)
-  }
-  return url.toString()
+  const target = new URL(productUrl, retailer.base_url)
+  target.searchParams.set('utm_source', 'ehub')
+  target.searchParams.set('utm_medium', 'affiliate')
+  target.searchParams.set('utm_campaign', retailer.utm_campaign || '5litru-cz')
+  const desturl = encodeURIComponent(target.toString())
+  const data1 = productSlug ? `5litru-${productSlug}` : '5litru'
+  return (
+    `https://ehub.cz/system/scripts/click.php?a_aid=2f4d1556&a_bid=46f8224d` +
+    `&data1=${data1}&desturl=${desturl}`
+  )
 }

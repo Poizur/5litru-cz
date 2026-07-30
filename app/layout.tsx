@@ -38,6 +38,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body>
         {children}
+        <footer style={{ textAlign: 'center', padding: '24px 16px', fontSize: '12px', color: '#888', borderTop: '1px solid #eee', marginTop: '48px' }}>
+          Tento web používá affiliate odkazy. Pokud zakoupíte produkt přes odkaz na 5litru.cz, může web obdržet provizi bez jakýchkoli dalších nákladů pro vás.{' '}
+          <a href="/o-webu/" style={{ color: '#888', textDecoration: 'underline' }}>Více o nás</a>
+        </footer>
         {GA_ID && (
           <>
             <Script
