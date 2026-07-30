@@ -25,6 +25,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="cs">
       <head>
+        <meta name="seznam-wmt" content="SedkqqnWTxaxP9ywfQvzV2xUhrQJkDOt" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link
           rel="preconnect"
