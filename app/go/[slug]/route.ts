@@ -27,18 +27,17 @@ export async function GET(
   const retailer = Array.isArray(product.retailer) ? product.retailer[0] : product.retailer
   const affiliateUrl = buildAffiliateUrl(product.product_url, retailer ?? {}, slug)
 
-  // Log click async (fire and forget — never block the redirect)
+  // Log click before redirect (await ensures it completes before Railway terminates the handler)
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? ''
   const ipHash = ip ? crypto.createHash('sha256').update(ip).digest('hex').slice(0, 16) : null
-  supabaseAdmin.from('affiliate_clicks').insert({
+  const { error: logErr } = await supabaseAdmin.from('affiliate_clicks').insert({
     slug,
     referer: req.headers.get('referer') ?? null,
     user_agent: req.headers.get('user-agent') ?? null,
     ip_hash: ipHash,
     is_test: isTest,
-  }).then(({ error: e }) => {
-    if (e) console.error('[go] click log failed:', e.message)
   })
+  if (logErr) console.error('[go] click log failed:', logErr.message)
 
   return NextResponse.redirect(affiliateUrl, { status: 302 })
 }
