@@ -199,14 +199,18 @@ async function buildDynamicComparisonTable(): Promise<string> {
       .order('acidity_pct', { ascending: true, nullsFirst: false })
     if (!res.error && res.data && res.data.length > 0) {
       data = res.data as ComparisonRow[]
-    } else if (res.error) {
-      // Column likely missing — retry without `available`
+    } else {
+      // Column likely missing or empty result — retry without `available`
+      console.log('[content] comparison-table fallback:', res.error?.message ?? 'empty result')
       const fallback = await supabaseAdmin
         .from('products')
         .select('slug, review_slug, name, origin_region, origin_country, acidity_pct, price_czk, volume_ml, hero_image')
         .eq('status', 'published')
         .order('acidity_pct', { ascending: true, nullsFirst: false })
-      if (!fallback.error && fallback.data) data = fallback.data as ComparisonRow[]
+      console.log('[content] fallback result:', fallback.error?.message ?? `${fallback.data?.length ?? 0} rows`)
+      if (!fallback.error && fallback.data && fallback.data.length > 0) {
+        data = fallback.data as ComparisonRow[]
+      }
     }
   }
   if (!data || data.length === 0) {

@@ -1,6 +1,11 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { cache } from 'react'
+
+// ISR: regenerate every hour so comparison table picks up stock/price changes
+// without a full redeploy (e.g. after applying DB migrations).
+export const revalidate = 3600
+
 import {
   resolveContent,
   getAllGuideSlugs,
