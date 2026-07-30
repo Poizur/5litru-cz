@@ -497,8 +497,15 @@ ${heurText}
 STYL — ukázky z existujících recenzí na 5litru.cz:
 ${styleSamples}
 
+PRAVIDLA OBSAHU — BEZPODMÍNEČNÁ:
+- Nikdy nepiš o vlastním testování nebo degustaci — web produkty fyzicky netestuje
+- Veškerá data (acidita, polyfenoly, certifikace) cituj jako "dle výrobce" nebo "dle etikety"
+- ŽÁDNÉ zdravotní sliby: nepiš "snižuje cholesterol", "předchází nemocem", "léčivé účinky"
+- CENY V TEXTU ZAKÁZÁNY — nepiš "za 1 490 Kč" ani "cena XX Kč/litr" — ceny zobrazuje web dynamicky
+- Pokud hodnota chybí (— v datech), daný parametr v textu vůbec nezmiňuj
+
 POKYNY:
-- Pis česky, přirozeně — informovaný nadšenec, ne marketér
+- Piš česky, přirozeně — informovaný nadšenec, ne marketér
 - Celkem ~2000 slov v sekcích intro + sensory + comparison + conclusion
 - Buď konkrétní: odrůda, acidita, region, co z toho plyne pro chuť
 - Nepoužívej: "zlatavá barva", "tekuté zlato", "výjimečná kvalita", "prémiový"
@@ -506,6 +513,11 @@ POKYNY:
 - Comparison: porovnej s dalšími 5L oleji z pohledu cena/výkon (obecně)
 - FAQ: praktické otázky — skladování, vaření, srovnání s extra light, vhodnost
 - Závěr: KDO by měl koupit a KDO ne
+
+JSON FORMÁT — POVINNÁ PRAVIDLA:
+- HTML pole (intro, sensory, comparison, conclusion) — POUZE tagy bez atributů: <p>, <strong>, <em>, <ul>, <li>
+- Žádné HTML atributy (href, class, style) — způsobují nevalidní JSON
+- Žádné dvojité uvozovky uvnitř řetězcových hodnot
 
 Vrať POUZE JSON v code blocku (\`\`\`json ... \`\`\`):
 {
@@ -528,13 +540,27 @@ Vrať POUZE JSON v code blocku (\`\`\`json ... \`\`\`):
 }
 
 function sanitizeJsonString(jsonStr: string): string {
-  // Remove BOM / zero-width chars that can appear in long LLM outputs
-  return jsonStr
+  // Remove BOM / zero-width chars
+  const normalized = jsonStr
     .replace(/^﻿/, '')
     .replace(/[​-‍﻿]/g, '')
-    // Normalise Windows line endings
     .replace(/\r\n/g, '\n')
     .replace(/\r/g, '\n')
+
+  // Replace literal newlines and tabs inside JSON string values with escaped equivalents.
+  // LLMs frequently output unescaped newlines inside HTML-valued JSON fields.
+  let result = ''
+  let inString = false
+  let escaped = false
+  for (const ch of normalized) {
+    if (escaped) { result += ch; escaped = false; continue }
+    if (ch === '\\') { result += ch; escaped = true; continue }
+    if (ch === '"') { result += ch; inString = !inString; continue }
+    if (inString && ch === '\n') { result += '\\n'; continue }
+    if (inString && ch === '\t') { result += '\\t'; continue }
+    result += ch
+  }
+  return result
 }
 
 function parseReviewContent(raw: string): ReviewContent {

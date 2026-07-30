@@ -43,7 +43,15 @@ export async function generateWeeklyReport(isTest = false): Promise<{ sent: bool
   const syncOk = lastSync?.status === 'success'
   const failedCount = (syncLogs ?? []).filter((r: SyncRow) => r.status !== 'success').length
 
-  // 3. Sold-out počet
+  // 3. Čeká na schválení (olivator_suggestions status='new')
+  const { data: pendingSuggestions } = await supabaseAdmin
+    .from('olivator_suggestions')
+    .select('name, olivator_score, primary_offer_price, discovered_at')
+    .eq('status', 'new')
+    .order('discovered_at')
+  const pendingCount = pendingSuggestions?.length ?? 0
+
+  // 3b. Sold-out počet
   const { count: soldOut } = await supabaseAdmin
     .from('products')
     .select('*', { count: 'exact', head: true })
@@ -95,6 +103,18 @@ export async function generateWeeklyReport(isTest = false): Promise<{ sent: bool
 
   <h3 style="font-size:14px;margin:24px 0 8px;color:#444">Dostupnost</h3>
   <p style="font-size:14px;margin:0">${soldOut ?? 0} / ${total ?? 0} produktů vyprodáno</p>
+
+  ${pendingCount > 0 ? `
+  <h3 style="font-size:14px;margin:24px 0 8px;color:#8a5a20">Čeká na schválení: ${pendingCount}</h3>
+  <table style="width:100%;border-collapse:collapse;font-size:13px">
+    ${(pendingSuggestions ?? []).map((s: { name: string; olivator_score: number | null; primary_offer_price: number | null; discovered_at: string }) => `<tr>
+      <td style="padding:3px 10px 3px 0;color:#1d1d1f">${s.name.slice(0, 50)}</td>
+      <td style="padding:3px 6px;color:#c4711a;text-align:right">${s.olivator_score ?? '—'}/100</td>
+      <td style="padding:3px 0;color:#888;text-align:right">${s.primary_offer_price != null ? Math.round(s.primary_offer_price) + ' Kč' : '—'}</td>
+    </tr>`).join('')}
+  </table>
+  <p style="font-size:12px;margin:6px 0 0"><a href="https://5litru.cz/admin/produkty/" style="color:#2d6a4f">Otevřít admin →</a></p>
+  ` : '<p style="font-size:14px;margin:24px 0 0;color:#888">Žádné návrhy čekají na schválení.</p>'}
 
   <p style="font-size:11px;color:#ccc;margin:32px 0 0;border-top:1px solid #eee;padding-top:12px">5litru.cz · automatický report</p>
 </div>`

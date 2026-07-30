@@ -297,6 +297,16 @@ export async function runOlivatorSync(triggeredBy: SyncTrigger): Promise<SyncSum
       continue
     }
 
+    // Skip damaged-packaging variants — "poskozeny" in URL or name signals outlet item,
+    // not a regular product (these belong on outlet sites, not 5litru reviews).
+    if (
+      reckonas.product_url.toLowerCase().includes('poskozeny') ||
+      p.name.toLowerCase().includes('poškozený')
+    ) {
+      suggestions_skipped++
+      continue
+    }
+
     newSuggestionsPayload.push({
       olivator_product_id: p.id,
       olivator_slug: p.slug,
@@ -368,6 +378,29 @@ export async function runOlivatorSync(triggeredBy: SyncTrigger): Promise<SyncSum
 
   const status: 'success' | 'partial' | 'failed' =
     errors.length === 0 ? 'success' : errors.length < 5 ? 'partial' : 'failed'
+
+  // 4c. Sweep: retry draft generation for older status='new' suggestions that never got one.
+  // Catches cases where auto-draft failed on the original discovery day.
+  // Capped at 2 per run to avoid Railway timeout (each draft = ~30–60 s).
+  if (process.env.AUTO_GENERATE_DRAFTS !== 'false') {
+    const { data: pending } = await supabaseAdmin
+      .from('olivator_suggestions')
+      .select('olivator_product_id, name')
+      .eq('status', 'new')
+      .is('imported_product_id', null)
+      .limit(2)
+    for (const s of (pending ?? []) as Array<{ olivator_product_id: string; name: string }>) {
+      // Skip suggestions we just attempted in 4b (already in this run)
+      if (newSuggestionsForEmail.some(n => n.olivator_product_id === s.olivator_product_id)) continue
+      try {
+        await generateAiReviewDraft(s.olivator_product_id)
+        drafts_created++
+        console.log(`[olivator-sync] sweep draft created for ${s.name.slice(0, 40)}`)
+      } catch (e) {
+        errors.push(`sweep-draft ${s.name.slice(0, 40)}: ${(e instanceof Error ? e.message : String(e)).slice(0, 80)}`)
+      }
+    }
+  }
 
   console.log(`[olivator-sync] drafts_created=${drafts_created} of ${newSuggestionsForEmail.length} new suggestions`)
 
