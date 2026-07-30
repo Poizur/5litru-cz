@@ -10,7 +10,7 @@ interface SyncRow {
   finished_at: string | null
   status: string
   prices_updated: number
-  errors: string[] | null
+  error_summary: string | null
 }
 
 export async function generateWeeklyReport(isTest = false): Promise<{ sent: boolean; html: string }> {
@@ -35,7 +35,7 @@ export async function generateWeeklyReport(isTest = false): Promise<{ sent: bool
   // 2. Posledních 5 sync runů
   const { data: syncLogs } = await supabaseAdmin
     .from('price_sync_log')
-    .select('started_at, finished_at, status, prices_updated, errors')
+    .select('started_at, finished_at, status, prices_updated, error_summary')
     .order('started_at', { ascending: false })
     .limit(5)
 
@@ -62,10 +62,16 @@ export async function generateWeeklyReport(isTest = false): Promise<{ sent: bool
     ? clickRows.map(r => `<tr><td style="padding:4px 12px 4px 0">${r.slug}</td><td style="padding:4px 0;text-align:right;font-weight:600">${r.cnt}</td></tr>`).join('')
     : '<tr><td colspan="2" style="padding:4px 0;color:#888">Žádné kliky za posledních 7 dní</td></tr>'
 
-  const syncStatusColor = syncOk ? '#2d6a4f' : '#c0392b'
-  const syncStatusText = syncOk
-    ? `✓ OK — ${lastSync?.prices_updated ?? 0} cen aktualizováno`
-    : `✗ ${lastSync?.status ?? 'neznámý'} — ${lastSync?.errors?.[0] ?? 'viz logy'}`
+  const lastSyncAge = lastSync
+    ? Math.round((Date.now() - new Date(lastSync.started_at).getTime()) / 3600000)
+    : null
+  const syncStale = lastSyncAge !== null && lastSyncAge > 30  // červeně pokud > 30h bez runu
+  const syncStatusColor = syncOk && !syncStale ? '#2d6a4f' : '#c0392b'
+  const syncStatusText = !lastSync
+    ? '✗ Žádný záznam — sync nikdy neběžel?'
+    : syncOk
+      ? `✓ OK — ${lastSync.prices_updated} cen aktualizováno · před ${lastSyncAge}h`
+      : `✗ ${lastSync.status} — ${lastSync.error_summary ?? 'viz Railway logy'}`
 
   const testBanner = isTest
     ? '<div style="background:#fff3cd;border:1px solid #ffc107;padding:8px 16px;margin-bottom:16px;border-radius:4px;font-size:12px">TESTOVACÍ REPORT — data za posledních 7 dní</div>'
