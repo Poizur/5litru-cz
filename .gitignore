@@ -48,3 +48,4 @@ Thumbs.db
 
 # AI-downloaded product images (use Supabase Storage / CDN for production)
 public/images/products/
+.claude/
