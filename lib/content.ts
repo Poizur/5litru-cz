@@ -188,12 +188,28 @@ function formatAcidity(pct: number | null): { value: string; band: 'low' | 'mid'
 }
 
 async function buildDynamicComparisonTable(): Promise<string> {
-  const { data, error } = await supabaseAdmin
-    .from('products')
-    .select('slug, review_slug, name, origin_region, origin_country, acidity_pct, price_czk, volume_ml, hero_image, available')
-    .eq('status', 'published')
-    .order('acidity_pct', { ascending: true, nullsFirst: false })
-  if (error || !data || data.length === 0) {
+  // Try with `available` column; if migration hasn't been applied yet, fall back
+  // gracefully to a query without it (all products treated as available=true).
+  let data: ComparisonRow[] | null = null
+  {
+    const res = await supabaseAdmin
+      .from('products')
+      .select('slug, review_slug, name, origin_region, origin_country, acidity_pct, price_czk, volume_ml, hero_image, available')
+      .eq('status', 'published')
+      .order('acidity_pct', { ascending: true, nullsFirst: false })
+    if (!res.error && res.data && res.data.length > 0) {
+      data = res.data as ComparisonRow[]
+    } else if (res.error) {
+      // Column likely missing — retry without `available`
+      const fallback = await supabaseAdmin
+        .from('products')
+        .select('slug, review_slug, name, origin_region, origin_country, acidity_pct, price_czk, volume_ml, hero_image')
+        .eq('status', 'published')
+        .order('acidity_pct', { ascending: true, nullsFirst: false })
+      if (!fallback.error && fallback.data) data = fallback.data as ComparisonRow[]
+    }
+  }
+  if (!data || data.length === 0) {
     return '<!-- comparison table: no published products -->'
   }
 
