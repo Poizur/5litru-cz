@@ -49,9 +49,9 @@ async function buildAffiliateRedirects() {
       const destination =
         `https://ehub.cz/system/scripts/click.php?a_aid=2f4d1556&a_bid=46f8224d` +
         `&data1=5litru-${p.slug}&desturl=${desturl}`
+      // /go/${p.slug} is handled by app/go/[slug]/route.ts (click logging + redirect)
       return [
         { source: `/${p.slug}/`, destination, permanent: false },
-        { source: `/go/${p.slug}`, destination, permanent: false },
       ]
     })
     console.log(`[next.config] generated ${redirects.length} affiliate redirects.`)
