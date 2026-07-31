@@ -111,11 +111,12 @@ export async function getReview(reviewSlug: string): Promise<ContentItem | null>
   const product = data as ProductRow
   const raw = product.review_mdx ?? ''
   const { data: fm, content } = matter(raw)
+  const body = await applyProductTokens(content)
   return {
     kind: 'review',
     slug: reviewSlug,
     frontmatter: fm as Frontmatter,
-    body: content,
+    body,
     product,
   }
 }
