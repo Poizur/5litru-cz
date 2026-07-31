@@ -1,43 +1,53 @@
 import type { Metadata } from 'next'
+import type { ReactNode } from 'react'
 import Script from 'next/script'
 import './globals.css'
-
-export const metadata: Metadata = {
-  title: {
-    default: '5litru.cz — olivový olej v 5L balení',
-    template: '%s | 5litru.cz',
-  },
-  description:
-    'Niche srovnávač olivových olejů v 5litrovém balení. Recenze řeckých olejů, průvodce výběrem, aktuální ceny.',
-  metadataBase: new URL('https://5litru.cz'),
-  icons: {
-    icon: [
-      { url: '/icon.png', sizes: '192x192', type: 'image/png' },
-      { url: '/icon-512.png', sizes: '512x512', type: 'image/png' },
-    ],
-    apple: [{ url: '/apple-icon.png', sizes: '180x180', type: 'image/png' }],
-  },
-  openGraph: {
-    type: 'website',
-    locale: 'cs_CZ',
-    url: 'https://5litru.cz',
-    siteName: '5litru.cz',
-    images: [{ url: '/opengraph-image.png', width: 1200, height: 630, alt: '5litru.cz — Olivový olej v 5L balení' }],
-  },
-  twitter: {
-    card: 'summary_large_image',
-    images: ['/opengraph-image.png'],
-  },
-  robots: { index: true, follow: true },
-}
+import { getMarket } from '@/lib/market'
+import { getLocale } from '@/lib/locale'
 
 const GA_ID = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export async function generateMetadata(): Promise<Metadata> {
+  const market = await getMarket()
+  const locale = getLocale(market)
+  const siteUrl = market === 'SK' ? 'https://5litrov.sk' : 'https://5litru.cz'
+  return {
+    title: {
+      default: locale.siteTitle,
+      template: `%s | ${locale.siteName}`,
+    },
+    description: locale.siteDescription,
+    metadataBase: new URL(siteUrl),
+    icons: {
+      icon: [
+        { url: '/icon.png', sizes: '192x192', type: 'image/png' },
+        { url: '/icon-512.png', sizes: '512x512', type: 'image/png' },
+      ],
+      apple: [{ url: '/apple-icon.png', sizes: '180x180', type: 'image/png' }],
+    },
+    openGraph: {
+      type: 'website',
+      locale: locale.locale,
+      url: siteUrl,
+      siteName: locale.siteName,
+      images: [{ url: '/opengraph-image.png', width: 1200, height: 630, alt: `${locale.siteName} — Olivový olej v 5L balení` }],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      images: ['/opengraph-image.png'],
+    },
+    robots: { index: true, follow: true },
+  }
+}
+
+export default async function RootLayout({ children }: { children: ReactNode }) {
+  const market = await getMarket()
+  const locale = getLocale(market)
   return (
-    <html lang="cs">
+    <html lang={locale.lang}>
       <head>
-        <meta name="seznam-wmt" content="SedkqqnWTxaxP9ywfQvzV2xUhrQJkDOt" />
+        {/* Seznam.cz webmaster verification — CZ only (Seznam has no SK presence) */}
+        {market === 'CZ' && <meta name="seznam-wmt" content="SedkqqnWTxaxP9ywfQvzV2xUhrQJkDOt" />}
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link
           rel="preconnect"
@@ -52,8 +62,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         {children}
         <footer style={{ textAlign: 'center', padding: '24px 16px', fontSize: '12px', color: '#888', borderTop: '1px solid #eee', marginTop: '48px' }}>
-          Tento web používá affiliate odkazy. Pokud zakoupíte produkt přes odkaz na 5litru.cz, může web obdržet provizi bez jakýchkoli dalších nákladů pro vás.{' '}
-          <a href="/o-webu/" style={{ color: '#888', textDecoration: 'underline' }}>Více o nás</a>
+          {locale.footerDisclaimer}{' '}
+          <a href={locale.footerAboutHref} style={{ color: '#888', textDecoration: 'underline' }}>{locale.footerAboutText}</a>
         </footer>
         {GA_ID && (
           <>

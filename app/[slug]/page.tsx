@@ -2,9 +2,10 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { cache } from 'react'
 
-// ISR: regenerate every hour so comparison table picks up stock/price changes
-// without a full redeploy (e.g. after applying DB migrations).
-export const revalidate = 3600
+// force-dynamic: prevents cross-domain ISR cache contamination.
+// 5litru.cz and 5litrov.sk share the same Railway deployment — if ISR cached
+// CZ responses, SK visitors would get CZ-locale content and vice versa.
+export const dynamic = 'force-dynamic'
 
 import {
   resolveContent,
@@ -13,6 +14,7 @@ import {
   getAllReviewSlugs,
 } from '@/lib/content'
 import { buildMetadata, breadcrumbSchema } from '@/lib/seo'
+import { getMarket } from '@/lib/market'
 
 interface PageProps {
   params: Promise<{ slug: string }>
@@ -20,6 +22,7 @@ interface PageProps {
 
 const resolve = cache(resolveContent)
 
+// generateStaticParams is kept for documentation; with force-dynamic it's unused.
 export async function generateStaticParams() {
   const reviews = await getAllReviewSlugs()
   const slugs = [...getAllGuideSlugs(), ...getAllPageSlugs(), ...reviews]
@@ -30,7 +33,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const { slug } = await params
   const item = await resolve(slug)
   if (!item) return {}
-  return buildMetadata(item)
+  const market = await getMarket()
+  return buildMetadata(item, market)
 }
 
 export default async function ContentPage({ params }: PageProps) {
@@ -38,8 +42,9 @@ export default async function ContentPage({ params }: PageProps) {
   const item = await resolve(slug)
   if (!item) notFound()
 
+  const market = await getMarket()
   const pageSchemas = Array.isArray(item.frontmatter.schemas) ? item.frontmatter.schemas : []
-  const breadcrumb = breadcrumbSchema(item)
+  const breadcrumb = breadcrumbSchema(item, market)
   const schemas = breadcrumb ? [...pageSchemas, breadcrumb] : pageSchemas
 
   return (

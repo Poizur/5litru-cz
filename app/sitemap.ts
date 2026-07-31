@@ -1,8 +1,15 @@
 import type { MetadataRoute } from 'next'
 import { getAllGuideSlugs, getAllPageSlugs, getAllReviewSlugs } from '@/lib/content'
-import { SITE_URL } from '@/lib/seo'
+import { getMarket, getSiteUrl } from '@/lib/market'
+
+// force-dynamic: each domain (5litru.cz / 5litrov.sk) gets its own sitemap
+// with correct base URLs. ISR would cache the first domain's URLs for both.
+export const dynamic = 'force-dynamic'
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  const market = await getMarket()
+  const siteUrl = getSiteUrl(market)
+
   const [reviews, pages, guides] = await Promise.all([
     getAllReviewSlugs(),
     Promise.resolve(getAllPageSlugs()),
@@ -12,21 +19,21 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const lastModified = new Date()
 
   return [
-    { url: `${SITE_URL}/`, lastModified, changeFrequency: 'weekly', priority: 1.0 },
+    { url: `${siteUrl}/`, lastModified, changeFrequency: 'weekly', priority: 1.0 },
     ...reviews.map((slug) => ({
-      url: `${SITE_URL}/${slug}/`,
+      url: `${siteUrl}/${slug}/`,
       lastModified,
       changeFrequency: 'monthly' as const,
       priority: 0.9,
     })),
     ...pages.map((slug) => ({
-      url: `${SITE_URL}/${slug}/`,
+      url: `${siteUrl}/${slug}/`,
       lastModified,
       changeFrequency: 'monthly' as const,
       priority: 0.8,
     })),
     ...guides.map((slug) => ({
-      url: `${SITE_URL}/${slug}/`,
+      url: `${siteUrl}/${slug}/`,
       lastModified,
       changeFrequency: 'monthly' as const,
       priority: 0.6,

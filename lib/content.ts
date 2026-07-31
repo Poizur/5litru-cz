@@ -13,6 +13,8 @@ import { readdirSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 import matter from 'gray-matter'
 import { supabaseAdmin } from './supabase'
+import { getMarket, type Market } from './market'
+import { getLocale } from './locale'
 
 const GUIDES_DIR = join(process.cwd(), 'content', 'guides')
 const PAGES_DIR = join(process.cwd(), 'content', 'pages')
@@ -79,7 +81,8 @@ async function readMdxFile(path: string): Promise<{ frontmatter: Frontmatter; bo
 export async function getGuide(slug: string): Promise<ContentItem | null> {
   const r = await readMdxFile(join(GUIDES_DIR, `${slug}.mdx`))
   if (!r) return null
-  const body = await applyProductTokens(r.body)
+  const market = await getMarket()
+  const body = await applyProductTokens(r.body, market)
   return { kind: 'guide', slug, frontmatter: r.frontmatter, body }
 }
 
@@ -87,15 +90,16 @@ export async function getPage(slug: string): Promise<ContentItem | null> {
   const r = await readMdxFile(join(PAGES_DIR, `${slug}.mdx`))
   if (!r) return null
   const kind: ContentKind = slug === 'homepage' ? 'homepage' : 'page'
+  const market = await getMarket()
 
   let body = r.body
 
   if (body.includes('<!-- @DYNAMIC_COMPARISON_TABLE -->')) {
-    const html = await buildDynamicComparisonTable()
+    const html = await buildDynamicComparisonTable(market)
     body = body.replace('<!-- @DYNAMIC_COMPARISON_TABLE -->', html)
   }
 
-  body = await applyProductTokens(body)
+  body = await applyProductTokens(body, market)
 
   return { kind, slug, frontmatter: r.frontmatter, body }
 }
@@ -111,7 +115,8 @@ export async function getReview(reviewSlug: string): Promise<ContentItem | null>
   const product = data as ProductRow
   const raw = product.review_mdx ?? ''
   const { data: fm, content } = matter(raw)
-  const body = await applyProductTokens(content)
+  const market = await getMarket()
+  const body = await applyProductTokens(content, market)
   return {
     kind: 'review',
     slug: reviewSlug,
@@ -155,24 +160,24 @@ export async function getAllPublicSlugs(): Promise<string[]> {
   return [...getAllGuideSlugs(), ...getAllPageSlugs(), ...reviews]
 }
 
-// ---------- Dynamic comparison table (DB-driven) ----------
-//
-// Renders all published products as <table class="comparison-table">,
-// reusing the CSS classes already defined inside the page MDX. Sorted by
-// acidity (lowest first → quality marker). Includes a hero thumbnail next
-// to the product name; this used to be missing in the legacy static table.
+// ---------- Shared types for product card rendering ----------
 
-interface ComparisonRow {
+interface Top3ProductRow {
   slug: string
   review_slug: string | null
   name: string
   origin_region: string | null
-  origin_country: string | null
   acidity_pct: number | null
   price_czk: number | null
+  price_eur: number | null        // null before DDL or for products without SK pricing (e.g. styliana)
   volume_ml: number
   hero_image: string | null
-  available: boolean | null  // null = column not yet migrated, treat as true
+  available: boolean | null       // null = column not yet migrated, treat as true
+  product_url_sk: string | null   // null before DDL or for products without a SK page
+}
+
+interface ComparisonRow extends Top3ProductRow {
+  origin_country: string | null
 }
 
 function escapeHtml(s: string): string {
@@ -183,120 +188,6 @@ function escapeHtml(s: string): string {
     .replace(/>/g, '&gt;')
 }
 
-// ---------- Per-product card injection (used by @PRODUCT_IMG/SPECS/FOOTER tokens) ----------
-
-interface Top3ProductRow {
-  slug: string
-  review_slug: string | null
-  name: string
-  origin_region: string | null
-  acidity_pct: number | null
-  price_czk: number | null
-  volume_ml: number
-  hero_image: string | null
-  available: boolean | null
-}
-
-function buildProductImgHtml(p: Top3ProductRow): string {
-  if (!p.hero_image) return ''
-  return `<img class="pd-img" src="${escapeHtml(p.hero_image)}" alt="${escapeHtml(p.name)}" loading="lazy" decoding="async">`
-}
-
-function buildProductSpecsHtml(p: Top3ProductRow): string {
-  const liters = (p.volume_ml ?? 5000) / 1000
-  const pricePer = p.price_czk != null ? Math.round(p.price_czk / liters) : null
-  const acid = formatAcidity(p.acidity_pct)
-  const priceFormatted = p.price_czk != null ? Math.round(p.price_czk).toLocaleString('cs-CZ') + ' Kč' : '—'
-  const perFormatted = pricePer != null ? pricePer + ' Kč/l' : '—'
-  return `<div class="product-detail-specs">
-      <div class="spec-item">
-        <div class="spec-val acid-${acid.band}">${acid.value}</div>
-        <div class="spec-key">Acidita</div>
-      </div>
-      <div class="spec-item">
-        <div class="spec-val">${priceFormatted}</div>
-        <div class="spec-key">Cena 5l</div>
-      </div>
-      <div class="spec-item">
-        <div class="spec-val">${perFormatted}</div>
-        <div class="spec-key">Cena/litr</div>
-      </div>
-    </div>`
-}
-
-function buildProductFooterHtml(p: Top3ProductRow): string {
-  const isAvailable = p.available !== false
-  const liters = (p.volume_ml ?? 5000) / 1000
-  const pricePer = p.price_czk != null ? Math.round(p.price_czk / liters) : null
-  const priceFormatted = p.price_czk != null ? Math.round(p.price_czk).toLocaleString('cs-CZ') + ' Kč' : '—'
-  const perFormatted = pricePer != null ? `${pricePer} Kč/l · plech 5l` : 'plech 5l'
-  const reviewHref = p.review_slug ? `/${p.review_slug}/` : `/${p.slug}/`
-  const ctaHtml = isAvailable
-    ? `<a href="/go/${escapeHtml(p.slug)}" class="btn-buy-big" rel="nofollow sponsored">Koupit na reckonasbavi.cz →</a>`
-    : `<span class="badge-sold-out">Momentálně vyprodáno</span>`
-  return `<div class="pd-footer">
-      <div class="pd-price-wrap">
-        <div class="pd-price">${priceFormatted}</div>
-        <div class="pd-price-per">${perFormatted}</div>
-      </div>
-      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
-        <a href="${escapeHtml(reviewHref)}" class="btn-detail">Celá recenze →</a>
-        ${ctaHtml}
-      </div>
-    </div>`
-}
-
-function buildProductPriceText(p: Top3ProductRow): string {
-  return p.price_czk != null ? Math.round(p.price_czk).toLocaleString('cs-CZ') + ' Kč' : '—'
-}
-
-function buildProductPerText(p: Top3ProductRow): string {
-  if (p.price_czk == null) return '—'
-  const liters = (p.volume_ml ?? 5000) / 1000
-  return Math.round(p.price_czk / liters) + ' Kč/l'
-}
-
-function buildProductAvailabilityHtml(p: Top3ProductRow): string {
-  const isAvailable = p.available !== false
-  if (isAvailable) {
-    return `<a href="/go/${escapeHtml(p.slug)}" class="btn-buy" rel="nofollow sponsored">Koupit →</a>`
-  }
-  return `<span class="badge-sold-out">Momentálně vyprodáno</span>`
-}
-
-const PRODUCT_TOKEN_RE = /<!-- @PRODUCT_(?:IMG|SPECS|FOOTER|PRICE|PER|AVAILABILITY):[a-z0-9-]+ -->/
-
-async function applyProductTokens(body: string): Promise<string> {
-  if (!PRODUCT_TOKEN_RE.test(body)) return body
-  const matches = [...body.matchAll(/<!-- @PRODUCT_(?:IMG|SPECS|FOOTER|PRICE|PER|AVAILABILITY):([a-z0-9-]+) -->/g)]
-  const uniqueSlugs = [...new Set(matches.map(m => m[1]))]
-  const { data: prodData } = await supabaseAdmin
-    .from('products')
-    .select('slug, review_slug, name, origin_region, acidity_pct, price_czk, volume_ml, hero_image, available')
-    .in('review_slug', uniqueSlugs)
-    .eq('status', 'published')
-  const productMap = new Map(((prodData ?? []) as Top3ProductRow[]).map(p => [p.review_slug!, p]))
-  return body
-    .replace(/<!-- @PRODUCT_IMG:([a-z0-9-]+) -->/g, (_, s) => {
-      const p = productMap.get(s); return p ? buildProductImgHtml(p) : ''
-    })
-    .replace(/<!-- @PRODUCT_SPECS:([a-z0-9-]+) -->/g, (_, s) => {
-      const p = productMap.get(s); return p ? buildProductSpecsHtml(p) : ''
-    })
-    .replace(/<!-- @PRODUCT_FOOTER:([a-z0-9-]+) -->/g, (_, s) => {
-      const p = productMap.get(s); return p ? buildProductFooterHtml(p) : ''
-    })
-    .replace(/<!-- @PRODUCT_PRICE:([a-z0-9-]+) -->/g, (_, s) => {
-      const p = productMap.get(s); return p ? buildProductPriceText(p) : '—'
-    })
-    .replace(/<!-- @PRODUCT_PER:([a-z0-9-]+) -->/g, (_, s) => {
-      const p = productMap.get(s); return p ? buildProductPerText(p) : '—'
-    })
-    .replace(/<!-- @PRODUCT_AVAILABILITY:([a-z0-9-]+) -->/g, (_, s) => {
-      const p = productMap.get(s); return p ? buildProductAvailabilityHtml(p) : ''
-    })
-}
-
 function formatAcidity(pct: number | null): { value: string; band: 'low' | 'mid' | 'high' } {
   if (pct === null) return { value: '—', band: 'mid' }
   const formatted = `${pct.toFixed(2).replace('.', ',')} %`
@@ -304,47 +195,189 @@ function formatAcidity(pct: number | null): { value: string; band: 'low' | 'mid'
   return { value: formatted, band }
 }
 
-async function buildDynamicComparisonTable(): Promise<string> {
-  // Try with `available` column; if migration hasn't been applied yet, fall back
-  // gracefully to a query without it (all products treated as available=true).
+// Market-aware price formatting
+function buildPriceInfo(
+  p: Pick<Top3ProductRow, 'price_czk' | 'price_eur' | 'volume_ml'>,
+  market: Market,
+) {
+  const liters = (p.volume_ml ?? 5000) / 1000
+  if (market === 'SK' && p.price_eur != null) {
+    const perL = p.price_eur / liters
+    return {
+      priceFormatted: `${p.price_eur.toFixed(2).replace('.', ',')} €`,
+      perFormatted: `${perL.toFixed(2).replace('.', ',')} €/l`,
+      perWithSize: `${perL.toFixed(2).replace('.', ',')} €/l · plech 5l`,
+    }
+  }
+  const pricePer = p.price_czk != null ? Math.round(p.price_czk / liters) : null
+  return {
+    priceFormatted: p.price_czk != null ? Math.round(p.price_czk).toLocaleString('cs-CZ') + ' Kč' : '—',
+    perFormatted: pricePer != null ? pricePer + ' Kč/l' : '—',
+    perWithSize: pricePer != null ? `${pricePer} Kč/l · plech 5l` : 'plech 5l',
+  }
+}
+
+// ---------- Per-product card injection (used by @PRODUCT_IMG/SPECS/FOOTER tokens) ----------
+
+function buildProductImgHtml(p: Top3ProductRow): string {
+  if (!p.hero_image) return ''
+  return `<img class="pd-img" src="${escapeHtml(p.hero_image)}" alt="${escapeHtml(p.name)}" loading="lazy" decoding="async">`
+}
+
+function buildProductSpecsHtml(p: Top3ProductRow, market: Market): string {
+  const acid = formatAcidity(p.acidity_pct)
+  const { priceFormatted, perFormatted } = buildPriceInfo(p, market)
+  const locale = getLocale(market)
+  return `<div class="product-detail-specs">
+      <div class="spec-item">
+        <div class="spec-val acid-${acid.band}">${acid.value}</div>
+        <div class="spec-key">Acidita</div>
+      </div>
+      <div class="spec-item">
+        <div class="spec-val">${priceFormatted}</div>
+        <div class="spec-key">${escapeHtml(locale.priceLabel)}</div>
+      </div>
+      <div class="spec-item">
+        <div class="spec-val">${perFormatted}</div>
+        <div class="spec-key">${escapeHtml(locale.perLabel)}</div>
+      </div>
+    </div>`
+}
+
+function buildProductFooterHtml(p: Top3ProductRow, market: Market): string {
+  const isAvailable = p.available !== false
+  const { priceFormatted, perWithSize } = buildPriceInfo(p, market)
+  const locale = getLocale(market)
+  const reviewHref = p.review_slug ? `/${p.review_slug}/` : `/${p.slug}/`
+  const ctaHtml = isAvailable
+    ? `<a href="/go/${escapeHtml(p.slug)}" class="btn-buy-big" rel="nofollow sponsored">${escapeHtml(locale.buyAt)}</a>`
+    : `<span class="badge-sold-out">${escapeHtml(locale.soldOut)}</span>`
+  return `<div class="pd-footer">
+      <div class="pd-price-wrap">
+        <div class="pd-price">${priceFormatted}</div>
+        <div class="pd-price-per">${perWithSize}</div>
+      </div>
+      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+        <a href="${escapeHtml(reviewHref)}" class="btn-detail">${escapeHtml(locale.fullReview)}</a>
+        ${ctaHtml}
+      </div>
+    </div>`
+}
+
+function buildProductPriceText(p: Top3ProductRow, market: Market): string {
+  return buildPriceInfo(p, market).priceFormatted
+}
+
+function buildProductPerText(p: Top3ProductRow, market: Market): string {
+  return buildPriceInfo(p, market).perFormatted
+}
+
+function buildProductAvailabilityHtml(p: Top3ProductRow, market: Market): string {
+  const isAvailable = p.available !== false
+  const locale = getLocale(market)
+  if (isAvailable) {
+    return `<a href="/go/${escapeHtml(p.slug)}" class="btn-buy" rel="nofollow sponsored">${escapeHtml(locale.buy)}</a>`
+  }
+  return `<span class="badge-sold-out">${escapeHtml(locale.soldOut)}</span>`
+}
+
+const PRODUCT_TOKEN_RE = /<!-- @PRODUCT_(?:IMG|SPECS|FOOTER|PRICE|PER|AVAILABILITY):[a-z0-9-]+ -->/
+
+async function applyProductTokens(body: string, market: Market = 'CZ'): Promise<string> {
+  if (!PRODUCT_TOKEN_RE.test(body)) return body
+  const matches = [...body.matchAll(/<!-- @PRODUCT_(?:IMG|SPECS|FOOTER|PRICE|PER|AVAILABILITY):([a-z0-9-]+) -->/g)]
+  const uniqueSlugs = [...new Set(matches.map(m => m[1]))]
+
+  // Fetch with SK columns; fall back gracefully if DDL not yet applied
+  let prodData: Top3ProductRow[] = []
+  const resFull = await supabaseAdmin
+    .from('products')
+    .select('slug, review_slug, name, origin_region, acidity_pct, price_czk, price_eur, product_url_sk, volume_ml, hero_image, available')
+    .in('review_slug', uniqueSlugs)
+    .eq('status', 'published')
+  if (!resFull.error) {
+    prodData = (resFull.data ?? []) as Top3ProductRow[]
+  } else {
+    // Columns price_eur / product_url_sk likely not yet added — fallback
+    const resFallback = await supabaseAdmin
+      .from('products')
+      .select('slug, review_slug, name, origin_region, acidity_pct, price_czk, volume_ml, hero_image, available')
+      .in('review_slug', uniqueSlugs)
+      .eq('status', 'published')
+    prodData = ((resFallback.data ?? []) as Array<Omit<Top3ProductRow, 'price_eur' | 'product_url_sk'>>).map(p => ({
+      ...p, price_eur: null, product_url_sk: null,
+    }))
+  }
+
+  const productMap = new Map(prodData.map(p => [p.review_slug!, p]))
+  return body
+    .replace(/<!-- @PRODUCT_IMG:([a-z0-9-]+) -->/g, (_, s) => {
+      const p = productMap.get(s); return p ? buildProductImgHtml(p) : ''
+    })
+    .replace(/<!-- @PRODUCT_SPECS:([a-z0-9-]+) -->/g, (_, s) => {
+      const p = productMap.get(s); return p ? buildProductSpecsHtml(p, market) : ''
+    })
+    .replace(/<!-- @PRODUCT_FOOTER:([a-z0-9-]+) -->/g, (_, s) => {
+      const p = productMap.get(s); return p ? buildProductFooterHtml(p, market) : ''
+    })
+    .replace(/<!-- @PRODUCT_PRICE:([a-z0-9-]+) -->/g, (_, s) => {
+      const p = productMap.get(s); return p ? buildProductPriceText(p, market) : '—'
+    })
+    .replace(/<!-- @PRODUCT_PER:([a-z0-9-]+) -->/g, (_, s) => {
+      const p = productMap.get(s); return p ? buildProductPerText(p, market) : '—'
+    })
+    .replace(/<!-- @PRODUCT_AVAILABILITY:([a-z0-9-]+) -->/g, (_, s) => {
+      const p = productMap.get(s); return p ? buildProductAvailabilityHtml(p, market) : ''
+    })
+}
+
+// ---------- Dynamic comparison table (DB-driven) ----------
+//
+// Renders all published products as <table class="comparison-table">,
+// reusing the CSS classes already defined inside the page MDX. Sorted by
+// acidity (lowest first → quality marker). Includes a hero thumbnail next
+// to the product name; this used to be missing in the legacy static table.
+
+async function buildDynamicComparisonTable(market: Market = 'CZ'): Promise<string> {
+  const locale = getLocale(market)
   let data: ComparisonRow[] | null = null
-  {
-    const res = await supabaseAdmin
+
+  // Try with SK columns; fall back if DDL not yet applied
+  const resFull = await supabaseAdmin
+    .from('products')
+    .select('slug, review_slug, name, origin_region, origin_country, acidity_pct, price_czk, price_eur, product_url_sk, volume_ml, hero_image, available')
+    .eq('status', 'published')
+    .order('acidity_pct', { ascending: true, nullsFirst: false })
+  if (!resFull.error && resFull.data && resFull.data.length > 0) {
+    data = resFull.data as ComparisonRow[]
+  } else {
+    console.log('[content] comparison-table full fetch:', resFull.error?.message ?? 'empty result')
+    const resFallback = await supabaseAdmin
       .from('products')
       .select('slug, review_slug, name, origin_region, origin_country, acidity_pct, price_czk, volume_ml, hero_image, available')
       .eq('status', 'published')
       .order('acidity_pct', { ascending: true, nullsFirst: false })
-    if (!res.error && res.data && res.data.length > 0) {
-      data = res.data as ComparisonRow[]
-    } else {
-      // Column likely missing or empty result — retry without `available`
-      console.log('[content] comparison-table fallback:', res.error?.message ?? 'empty result')
-      const fallback = await supabaseAdmin
-        .from('products')
-        .select('slug, review_slug, name, origin_region, origin_country, acidity_pct, price_czk, volume_ml, hero_image')
-        .eq('status', 'published')
-        .order('acidity_pct', { ascending: true, nullsFirst: false })
-      console.log('[content] fallback result:', fallback.error?.message ?? `${fallback.data?.length ?? 0} rows`)
-      if (!fallback.error && fallback.data && fallback.data.length > 0) {
-        data = fallback.data as ComparisonRow[]
-      }
+    if (!resFallback.error && resFallback.data && resFallback.data.length > 0) {
+      data = (resFallback.data as Array<Omit<ComparisonRow, 'price_eur' | 'product_url_sk'>>).map(p => ({
+        ...p, price_eur: null, product_url_sk: null,
+      }))
     }
   }
+
   if (!data || data.length === 0) {
     return '<!-- comparison table: no published products -->'
   }
 
   // Available products first, then sold-out; within each group keep acidity order
   const sorted = [
-    ...(data as ComparisonRow[]).filter(p => p.available !== false),
-    ...(data as ComparisonRow[]).filter(p => p.available === false),
+    ...data.filter(p => p.available !== false),
+    ...data.filter(p => p.available === false),
   ]
 
   const rows = sorted.map((p, i) => {
     const isAvailable = p.available !== false
-    const liters = (p.volume_ml ?? 5000) / 1000
-    const pricePer = p.price_czk != null ? Math.round(p.price_czk / liters) : null
     const acid = formatAcidity(p.acidity_pct)
+    const { priceFormatted, perFormatted } = buildPriceInfo(p, market)
     const thumb = p.hero_image
       ? `<img src="${escapeHtml(p.hero_image)}" alt="${escapeHtml(p.name)}" class="t-thumb" loading="lazy" decoding="async">`
       : `<div class="t-thumb" aria-hidden="true"></div>`
@@ -354,8 +387,8 @@ async function buildDynamicComparisonTable(): Promise<string> {
     const region = [p.origin_region, p.origin_country].filter(Boolean).join(' · ') || '—'
     const isTopPick = isAvailable && i < 3
     const ctaCell = isAvailable
-      ? `<a href="/go/${p.slug}" class="btn-table" rel="nofollow sponsored">Koupit →</a>`
-      : `<span class="badge-sold-out">Momentálně vyprodáno</span>`
+      ? `<a href="/go/${p.slug}" class="btn-table" rel="nofollow sponsored">${escapeHtml(locale.buy)}</a>`
+      : `<span class="badge-sold-out">${escapeHtml(locale.soldOut)}</span>`
     return `<tr${isTopPick ? ' class="top-pick"' : ''}${!isAvailable ? ' class="row-sold-out"' : ''}>
             <td>
               <div class="t-product-cell">
@@ -368,8 +401,8 @@ async function buildDynamicComparisonTable(): Promise<string> {
             </td>
             <td>${escapeHtml(p.origin_region ?? p.origin_country ?? '—')}</td>
             <td><span class="t-acid acid-${acid.band}">${acid.value}</span></td>
-            <td><span class="t-price">${p.price_czk != null ? Math.round(p.price_czk).toLocaleString('cs-CZ') + ' Kč' : '—'}</span></td>
-            <td><span class="t-price-per">${pricePer != null ? pricePer + ' Kč/l' : '—'}</span></td>
+            <td><span class="t-price">${priceFormatted}</span></td>
+            <td><span class="t-price-per">${perFormatted}</span></td>
             <td>${ctaCell}</td>
           </tr>`
   }).join('\n')
@@ -378,11 +411,11 @@ async function buildDynamicComparisonTable(): Promise<string> {
       <table class="comparison-table">
         <thead>
           <tr>
-            <th>Produkt</th>
-            <th>Region</th>
-            <th>Acidita</th>
-            <th>Cena</th>
-            <th>Kč/litr</th>
+            <th>${locale.tableHeadProduct}</th>
+            <th>${locale.tableHeadRegion}</th>
+            <th>${locale.tableHeadAcidity}</th>
+            <th>${locale.tableHeadPrice}</th>
+            <th>${locale.tableHeadPerLiter}</th>
             <th></th>
           </tr>
         </thead>
