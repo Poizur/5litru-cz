@@ -78,7 +78,9 @@ async function readMdxFile(path: string): Promise<{ frontmatter: Frontmatter; bo
 
 export async function getGuide(slug: string): Promise<ContentItem | null> {
   const r = await readMdxFile(join(GUIDES_DIR, `${slug}.mdx`))
-  return r ? { kind: 'guide', slug, ...r } : null
+  if (!r) return null
+  const body = await applyProductTokens(r.body)
+  return { kind: 'guide', slug, frontmatter: r.frontmatter, body }
 }
 
 export async function getPage(slug: string): Promise<ContentItem | null> {
@@ -86,7 +88,6 @@ export async function getPage(slug: string): Promise<ContentItem | null> {
   if (!r) return null
   const kind: ContentKind = slug === 'homepage' ? 'homepage' : 'page'
 
-  // Server-side injection of dynamic blocks (DB-driven).
   let body = r.body
 
   if (body.includes('<!-- @DYNAMIC_COMPARISON_TABLE -->')) {
@@ -94,29 +95,7 @@ export async function getPage(slug: string): Promise<ContentItem | null> {
     body = body.replace('<!-- @DYNAMIC_COMPARISON_TABLE -->', html)
   }
 
-  // @PRODUCT_IMG:review-slug  →  <img class="pd-img" ...>
-  // @PRODUCT_SPECS:review-slug  →  <div class="product-detail-specs">...</div>
-  // @PRODUCT_FOOTER:review-slug  →  <div class="pd-footer">...</div>
-  if (/<!-- @PRODUCT_(?:IMG|SPECS|FOOTER):[a-z0-9-]+ -->/.test(body)) {
-    const matches = [...body.matchAll(/<!-- @PRODUCT_(?:IMG|SPECS|FOOTER):([a-z0-9-]+) -->/g)]
-    const uniqueSlugs = [...new Set(matches.map(m => m[1]))]
-    const { data: prodData } = await supabaseAdmin
-      .from('products')
-      .select('slug, review_slug, name, origin_region, acidity_pct, price_czk, volume_ml, hero_image, available')
-      .in('review_slug', uniqueSlugs)
-      .eq('status', 'published')
-    const productMap = new Map(((prodData ?? []) as Top3ProductRow[]).map(p => [p.review_slug!, p]))
-    body = body
-      .replace(/<!-- @PRODUCT_IMG:([a-z0-9-]+) -->/g, (_, s) => {
-        const p = productMap.get(s); return p ? buildProductImgHtml(p) : ''
-      })
-      .replace(/<!-- @PRODUCT_SPECS:([a-z0-9-]+) -->/g, (_, s) => {
-        const p = productMap.get(s); return p ? buildProductSpecsHtml(p) : ''
-      })
-      .replace(/<!-- @PRODUCT_FOOTER:([a-z0-9-]+) -->/g, (_, s) => {
-        const p = productMap.get(s); return p ? buildProductFooterHtml(p) : ''
-      })
-  }
+  body = await applyProductTokens(body)
 
   return { kind, slug, frontmatter: r.frontmatter, body }
 }
@@ -264,6 +243,46 @@ function buildProductFooterHtml(p: Top3ProductRow): string {
         ${ctaHtml}
       </div>
     </div>`
+}
+
+function buildProductPriceText(p: Top3ProductRow): string {
+  return p.price_czk != null ? Math.round(p.price_czk).toLocaleString('cs-CZ') + ' Kč' : '—'
+}
+
+function buildProductPerText(p: Top3ProductRow): string {
+  if (p.price_czk == null) return '—'
+  const liters = (p.volume_ml ?? 5000) / 1000
+  return Math.round(p.price_czk / liters) + ' Kč/l'
+}
+
+const PRODUCT_TOKEN_RE = /<!-- @PRODUCT_(?:IMG|SPECS|FOOTER|PRICE|PER):[a-z0-9-]+ -->/
+
+async function applyProductTokens(body: string): Promise<string> {
+  if (!PRODUCT_TOKEN_RE.test(body)) return body
+  const matches = [...body.matchAll(/<!-- @PRODUCT_(?:IMG|SPECS|FOOTER|PRICE|PER):([a-z0-9-]+) -->/g)]
+  const uniqueSlugs = [...new Set(matches.map(m => m[1]))]
+  const { data: prodData } = await supabaseAdmin
+    .from('products')
+    .select('slug, review_slug, name, origin_region, acidity_pct, price_czk, volume_ml, hero_image, available')
+    .in('review_slug', uniqueSlugs)
+    .eq('status', 'published')
+  const productMap = new Map(((prodData ?? []) as Top3ProductRow[]).map(p => [p.review_slug!, p]))
+  return body
+    .replace(/<!-- @PRODUCT_IMG:([a-z0-9-]+) -->/g, (_, s) => {
+      const p = productMap.get(s); return p ? buildProductImgHtml(p) : ''
+    })
+    .replace(/<!-- @PRODUCT_SPECS:([a-z0-9-]+) -->/g, (_, s) => {
+      const p = productMap.get(s); return p ? buildProductSpecsHtml(p) : ''
+    })
+    .replace(/<!-- @PRODUCT_FOOTER:([a-z0-9-]+) -->/g, (_, s) => {
+      const p = productMap.get(s); return p ? buildProductFooterHtml(p) : ''
+    })
+    .replace(/<!-- @PRODUCT_PRICE:([a-z0-9-]+) -->/g, (_, s) => {
+      const p = productMap.get(s); return p ? buildProductPriceText(p) : '—'
+    })
+    .replace(/<!-- @PRODUCT_PER:([a-z0-9-]+) -->/g, (_, s) => {
+      const p = productMap.get(s); return p ? buildProductPerText(p) : '—'
+    })
 }
 
 function formatAcidity(pct: number | null): { value: string; band: 'low' | 'mid' | 'high' } {
