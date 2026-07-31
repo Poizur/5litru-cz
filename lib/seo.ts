@@ -5,6 +5,7 @@ import type { ContentItem } from './content'
 
 export const SITE_URL = 'https://5litru.cz'
 export const SITE_NAME = '5litru.cz'
+const DEFAULT_OG_IMAGE = `${SITE_URL}/opengraph-image.png`
 
 // Resolves OG image to an absolute URL (Open Graph crawlers require it).
 function absoluteOgImage(image: string | null | undefined): string | undefined {
@@ -36,15 +37,15 @@ export function buildMetadata(item: ContentItem): Metadata {
       siteName: SITE_NAME,
       locale: 'cs_CZ',
       type: ogTypeFor(item.kind),
-      images: ogImage ? [{ url: ogImage }] : undefined,
+      images: [{ url: ogImage ?? DEFAULT_OG_IMAGE, width: 1200, height: 630 }],
       publishedTime:
         item.kind === 'review' || item.kind === 'guide' ? (fm.published_at as string | undefined) : undefined,
     },
     twitter: {
-      card: ogImage ? 'summary_large_image' : 'summary',
+      card: 'summary_large_image',
       title: fm.title,
       description,
-      images: ogImage ? [ogImage] : undefined,
+      images: [ogImage ?? DEFAULT_OG_IMAGE],
     },
     robots: { index: true, follow: true },
   }
