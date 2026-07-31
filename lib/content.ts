@@ -256,11 +256,19 @@ function buildProductPerText(p: Top3ProductRow): string {
   return Math.round(p.price_czk / liters) + ' Kč/l'
 }
 
-const PRODUCT_TOKEN_RE = /<!-- @PRODUCT_(?:IMG|SPECS|FOOTER|PRICE|PER):[a-z0-9-]+ -->/
+function buildProductAvailabilityHtml(p: Top3ProductRow): string {
+  const isAvailable = p.available !== false
+  if (isAvailable) {
+    return `<a href="/go/${escapeHtml(p.slug)}" class="btn-buy" rel="nofollow sponsored">Koupit →</a>`
+  }
+  return `<span class="badge-sold-out">Momentálně vyprodáno</span>`
+}
+
+const PRODUCT_TOKEN_RE = /<!-- @PRODUCT_(?:IMG|SPECS|FOOTER|PRICE|PER|AVAILABILITY):[a-z0-9-]+ -->/
 
 async function applyProductTokens(body: string): Promise<string> {
   if (!PRODUCT_TOKEN_RE.test(body)) return body
-  const matches = [...body.matchAll(/<!-- @PRODUCT_(?:IMG|SPECS|FOOTER|PRICE|PER):([a-z0-9-]+) -->/g)]
+  const matches = [...body.matchAll(/<!-- @PRODUCT_(?:IMG|SPECS|FOOTER|PRICE|PER|AVAILABILITY):([a-z0-9-]+) -->/g)]
   const uniqueSlugs = [...new Set(matches.map(m => m[1]))]
   const { data: prodData } = await supabaseAdmin
     .from('products')
@@ -283,6 +291,9 @@ async function applyProductTokens(body: string): Promise<string> {
     })
     .replace(/<!-- @PRODUCT_PER:([a-z0-9-]+) -->/g, (_, s) => {
       const p = productMap.get(s); return p ? buildProductPerText(p) : '—'
+    })
+    .replace(/<!-- @PRODUCT_AVAILABILITY:([a-z0-9-]+) -->/g, (_, s) => {
+      const p = productMap.get(s); return p ? buildProductAvailabilityHtml(p) : ''
     })
 }
 
