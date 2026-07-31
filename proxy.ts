@@ -67,12 +67,22 @@ export async function proxy(request: NextRequest) {
   }
 
   const response = NextResponse.next()
+
   // Admin pages must not be cached — DB state changes frequently.
   if (pathname.startsWith('/admin') || pathname.startsWith('/api/admin')) {
     response.headers.set('Cache-Control', 'private, no-store, no-cache, must-revalidate, max-age=0')
     response.headers.set('Pragma', 'no-cache')
     response.headers.set('Expires', '0')
   }
+
+  // Market detection — used by server components via headers()
+  // 5litrov.sk → SK / EUR / sk, anything else → CZ / CZK / cs
+  const host = request.headers.get('host') ?? ''
+  const isSK = host === '5litrov.sk' || host.startsWith('5litrov.sk:')
+  response.headers.set('x-market', isSK ? 'SK' : 'CZ')
+  response.headers.set('x-locale', isSK ? 'sk' : 'cs')
+  response.headers.set('x-currency', isSK ? 'EUR' : 'CZK')
+
   return response
 }
 
