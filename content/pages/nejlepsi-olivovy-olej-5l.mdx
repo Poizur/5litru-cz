@@ -32,8 +32,8 @@ schemas:
           text: >-
             Pro každodenní vaření doporučujeme Motakis Kréta (acidita ≤0,8 %).
             Pro nejnižší aciditu vyberte SITIA Gold 0,2 % (acidita 0,26 %). Pro
-            nejjemnější chuť bez hořkosti je nejlepší Neotis Manaki (acidita
-            ≤0,3 %). Aktuální ceny ověřte na stránce produktu.
+            nejjemnější chuť bez hořkosti — vhodný i pro děti — je nejlepší
+            CORINTO Peloponés Manaki (acidita ≤0,3 %, odrůda Manaki).
       - '@type': Question
         name: Co je acidita olivového oleje a proč záleží?
         acceptedAnswer:
@@ -193,11 +193,12 @@ nav {
 .pd-footer { display:flex; align-items:center; justify-content:space-between; padding-top:18px; border-top:1px solid var(--border); flex-wrap:wrap; gap:12px; }
 .pd-price { font-family:'Cormorant Garamond',serif; font-size:32px; font-weight:700; color:var(--dark); line-height:1; }
 .pd-price-per { font-size:13px; color:var(--muted); margin-top:2px; }
-.pd-price-note { font-size:13px; color:var(--muted); margin-top:4px; font-style:italic; }
 .btn-buy-big { display:inline-flex; align-items:center; gap:8px; padding:12px 24px; background:var(--olive); color:#fff; text-decoration:none; font-size:14px; font-weight:600; letter-spacing:0.8px; text-transform:uppercase; border-radius:2px; transition:all .2s; }
 .btn-buy-big:hover { background:var(--olive2); transform:translateY(-2px); }
 .btn-detail { color:var(--olive); text-decoration:none; font-size:14px; font-weight:500; border-bottom:1px solid var(--olive); padding-bottom:1px; transition:all .2s; }
 .btn-detail:hover { color:var(--gold); border-color:var(--gold); }
+.pd-img { width:110px; height:110px; object-fit:contain; background:#fff; border-radius:3px; padding:8px; border:1px solid var(--border); flex-shrink:0; align-self:center; }
+.badge-sold-out { display:inline-flex; align-items:center; padding:8px 16px; background:#f5f5f5; border:1px solid #ddd; border-radius:2px; font-size:13px; color:var(--muted); }
 
 .info-box { display:flex; gap:14px; align-items:flex-start; padding:18px 20px; border-radius:3px; margin:24px 0; font-size:17px; line-height:1.8; }
 .info-box.tip   { background:#fffbf0; border-left:3px solid var(--gold); }
@@ -346,7 +347,7 @@ footer { background:var(--dark); padding:52px 40px 36px; }
 
     <!-- @DYNAMIC_COMPARISON_TABLE -->
     <p class="prose" style="font-size:12px;color:var(--muted);margin-top:8px;">
-      💡 Ceny jsou orientační — vždy ověřte aktuální cenu před objednávkou. Zvýrazněné řádky = top doporučení dle kategorie.
+      💡 Ceny ze syncu — aktualizovány každých 24 h. Zvýrazněné řádky = top doporučení dle kategorie.
     </p>
   </section>
 
@@ -363,81 +364,46 @@ footer { background:var(--dark); padding:52px 40px 36px; }
     <!-- MOTAKIS -->
     <div class="product-detail reveal" id="motakis">
       <div class="product-detail-header">
+        <!-- @PRODUCT_IMG:motakis-recenze -->
         <div class="product-detail-header-left">
-          <div class="pd-region">Kréta · Koroneiki · sklizeň 2025/26</div>
+          <div class="pd-region">Kréta · Koroneiki</div>
           <div class="pd-name">Motakis Kréta</div>
           <div class="pd-badges">
             <span class="pd-badge pd-badge-dark">🏆 Nejprodávanější</span>
             <span class="pd-badge pd-badge-green">Nejlepší cena/kvalita</span>
           </div>
         </div>
-        <div class="product-detail-specs">
-          <div class="spec-item">
-            <div class="spec-val"><span style="font-family:'Jost',sans-serif;">≤</span>0,8%</div>
-            <div class="spec-key">Acidita</div>
-          </div>
-          <div class="spec-item">
-            <div class="spec-val">1 290 Kč</div>
-            <div class="spec-key">Cena 5l</div>
-          </div>
-          <div class="spec-item">
-            <div class="spec-val">258 Kč/l</div>
-            <div class="spec-key">Cena/litr</div>
-          </div>
-        </div>
+        <!-- @PRODUCT_SPECS:motakis-recenze -->
       </div>
       <div class="product-detail-body">
         <p class="pd-desc">
           Motakis Kréta je nejprodávanějším olivovým olejem 5l v celé nabídce — a je to zasloužené. Výrobce Ilios Motakis pochází přímo z Kréty a olej zpracovává z odrůdy Koroneiki, která je základem krétské olivové tradice. Chuťový profil je středně jemný s příjemným pikantním závěrem, který prozrazuje zdravé polyfenoly.
         </p>
         <p class="pd-desc">
-          Pro koho je ideální? Pro každodenní vaření v celé rodině — salátové zálivky, marinády, pečení zeleniny i vaření. Acidita do 0,8 % splňuje normu extra panenského oleje. <strong>Na 258 Kč/l neexistuje v tomto formátu lepší poměr cena/kvalita.</strong>
+          Pro koho je ideální? Pro každodenní vaření v celé rodině — salátové zálivky, marinády, pečení zeleniny i vaření. Acidita do 0,8 % splňuje normu extra panenského oleje. <strong>Dlouhodobě nejnižší cena za litr v celé nabídce.</strong>
         </p>
         <div class="pd-pros">
           <span class="pro-tag">✓ Nejnižší cena/litr</span>
-          <span class="pro-tag">✓ Sklizeň 2025/26</span>
-          <span class="pro-tag">✓ Pikantní závěr</span>
-          <span class="pro-tag">✓ Dostupná sleva při poškozeném obalu</span>
+          <span class="pro-tag">✓ Pikantní závěr Koroneiki</span>
+          <span class="pro-tag">✓ Každodenní vaření i smažení</span>
         </div>
-        <div class="pd-footer">
-          <div class="pd-price-wrap">
-            <div class="pd-price">1 290 Kč</div>
-            <div class="pd-price-per">258 Kč/l · plech 5l</div>
-            <div class="pd-price-note">Ověřte aktuální cenu před objednávkou</div>
-          </div>
-          <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
-            <a href="/motakis-recenze" class="btn-detail">Celá recenze →</a>
-            <a href="/go/motakis" class="btn-buy-big" rel="nofollow sponsored">Koupit na reckonasbavi.cz →</a>
-          </div>
-        </div>
+        <!-- @PRODUCT_FOOTER:motakis-recenze -->
       </div>
     </div>
 
     <!-- SITIA -->
     <div class="product-detail reveal" id="sitia" style="margin-top:20px;">
       <div class="product-detail-header" style="background:#e8f0da;">
+        <!-- @PRODUCT_IMG:sitia-premium-gold-recenze -->
         <div class="product-detail-header-left">
-          <div class="pd-region">Sitia Lassithi · Kréta · sklizeň 2025/26</div>
+          <div class="pd-region">Sitia Lassithi · Kréta</div>
           <div class="pd-name">SITIA Gold 0,2 %</div>
           <div class="pd-badges">
             <span class="pd-badge pd-badge-gold">⚗️ Nejnižší acidita</span>
             <span class="pd-badge pd-badge-green">Premium kvalita</span>
           </div>
         </div>
-        <div class="product-detail-specs">
-          <div class="spec-item">
-            <div class="spec-val" style="color:#2d7a2d;">0,26%</div>
-            <div class="spec-key">Acidita</div>
-          </div>
-          <div class="spec-item">
-            <div class="spec-val">1 590 Kč</div>
-            <div class="spec-key">Cena 5l</div>
-          </div>
-          <div class="spec-item">
-            <div class="spec-val">318 Kč/l</div>
-            <div class="spec-key">Cena/litr</div>
-          </div>
-        </div>
+        <!-- @PRODUCT_SPECS:sitia-premium-gold-recenze -->
       </div>
       <div class="product-detail-body">
         <p class="pd-desc">
@@ -449,72 +415,39 @@ footer { background:var(--dark); padding:52px 40px 36px; }
         <div class="pd-pros">
           <span class="pro-tag">✓ Acidita 0,26 % (skutečné premium)</span>
           <span class="pro-tag">✓ Farmářský zdroj</span>
-          <span class="pro-tag">✓ Sklizeň 2025/26</span>
+          <span class="pro-tag">✓ Polyfenoly nad průměrem</span>
         </div>
-        <div class="pd-footer">
-          <div class="pd-price-wrap">
-            <div class="pd-price">1 590 Kč</div>
-            <div class="pd-price-per">318 Kč/l · plech 5l</div>
-            <div class="pd-price-note">Ověřte aktuální cenu před objednávkou</div>
-          </div>
-          <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
-            <a href="/sitia-premium-gold-recenze" class="btn-detail">Celá recenze →</a>
-            <a href="/go/sitia" class="btn-buy-big" rel="nofollow sponsored">Koupit na reckonasbavi.cz →</a>
-          </div>
-        </div>
+        <!-- @PRODUCT_FOOTER:sitia-premium-gold-recenze -->
       </div>
     </div>
 
-    <!-- NEOTIS -->
-    <div class="product-detail reveal" id="neotis" style="margin-top:20px;">
+    <!-- CORINTO MANAKI -->
+    <div class="product-detail reveal" id="manaki" style="margin-top:20px;">
       <div class="product-detail-header" style="background:#e2eed6;">
+        <!-- @PRODUCT_IMG:corinto-pelopones-olivovy-olej-manaki-0-3-recenze -->
         <div class="product-detail-header-left">
-          <div class="pd-region">Peloponés · odrůda Manaki (unikát) · sklizeň 2025/26</div>
-          <div class="pd-name">Neotis Manaki</div>
+          <div class="pd-region">Peloponés · odrůda Manaki</div>
+          <div class="pd-name">CORINTO Peloponés Manaki</div>
           <div class="pd-badges">
             <span class="pd-badge pd-badge-dark">🌿 Nejjemnější chuť</span>
             <span class="pd-badge pd-badge-green">Vhodný i pro děti</span>
           </div>
         </div>
-        <div class="product-detail-specs">
-          <div class="spec-item">
-            <div class="spec-val" style="color:#2d7a2d;"><span style="font-family:'Jost',sans-serif;">≤</span>0,3%</div>
-            <div class="spec-key">Acidita</div>
-          </div>
-          <div class="spec-item">
-            <div class="spec-val">2 090 Kč</div>
-            <div class="spec-key">Cena 5l</div>
-          </div>
-          <div class="spec-item">
-            <div class="spec-val">418 Kč/l</div>
-            <div class="spec-key">Cena/litr</div>
-          </div>
-        </div>
+        <!-- @PRODUCT_SPECS:corinto-pelopones-olivovy-olej-manaki-0-3-recenze -->
       </div>
       <div class="product-detail-body">
         <p class="pd-desc">
-          Neotis Manaki je jediný olej v celé nabídce, který není z odrůdy Koroneiki — a právě to ho dělá unikátním. Odrůda Manaki z Peloponésu je pověstná nulovou hořkostí a sametově jemnou chutí. Kde ostatní oleje mají pikantní nebo hořký závěr (znak polyfenolů), Manaki je čistě máslový a lehký.
+          CORINTO Peloponés Manaki patří mezi výjimky v celé nabídce — je to olej z odrůdy Manaki, nikoli Koroneiki. Odrůda Manaki z Peloponésu je pověstná nulovou hořkostí a sametově jemnou chutí. Kde ostatní oleje mají pikantní nebo hořký závěr (znak polyfenolů), Manaki je čistě máslový a lehký.
         </p>
         <p class="pd-desc">
           Olej je lisovaný ve stejný den jako sklizeň — minimální oxidace znamená maximální čerstvost. <strong>Je ideální pro rodiny s dětmi, lidi citliví na hořkost a pro použití v moučnících nebo dezertovém pečení.</strong>
         </p>
         <div class="pd-pros">
-          <span class="pro-tag">✓ Odrůda Manaki — unikátní</span>
+          <span class="pro-tag">✓ Odrůda Manaki</span>
           <span class="pro-tag">✓ Nulová hořkost</span>
           <span class="pro-tag">✓ Lisovaný den sklizně</span>
-          <span class="pro-tag">✓ Sklizeň 2025/26</span>
         </div>
-        <div class="pd-footer">
-          <div class="pd-price-wrap">
-            <div class="pd-price">2 090 Kč</div>
-            <div class="pd-price-per">418 Kč/l · plech 5l</div>
-            <div class="pd-price-note">Ověřte aktuální cenu před objednávkou</div>
-          </div>
-          <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
-            <a href="/neotis-manaki-recenze" class="btn-detail">Celá recenze →</a>
-            <a href="/go/neotis" class="btn-buy-big" rel="nofollow sponsored">Koupit na reckonasbavi.cz →</a>
-          </div>
-        </div>
+        <!-- @PRODUCT_FOOTER:corinto-pelopones-olivovy-olej-manaki-0-3-recenze -->
       </div>
     </div>
   </section>

@@ -86,13 +86,36 @@ export async function getPage(slug: string): Promise<ContentItem | null> {
   if (!r) return null
   const kind: ContentKind = slug === 'homepage' ? 'homepage' : 'page'
 
-  // Server-side injection of dynamic blocks (DB-driven). Currently:
-  //   <!-- @DYNAMIC_COMPARISON_TABLE -->  →  comparison-table HTML built
-  //                                         from published products
+  // Server-side injection of dynamic blocks (DB-driven).
   let body = r.body
+
   if (body.includes('<!-- @DYNAMIC_COMPARISON_TABLE -->')) {
     const html = await buildDynamicComparisonTable()
     body = body.replace('<!-- @DYNAMIC_COMPARISON_TABLE -->', html)
+  }
+
+  // @PRODUCT_IMG:review-slug  →  <img class="pd-img" ...>
+  // @PRODUCT_SPECS:review-slug  →  <div class="product-detail-specs">...</div>
+  // @PRODUCT_FOOTER:review-slug  →  <div class="pd-footer">...</div>
+  if (/<!-- @PRODUCT_(?:IMG|SPECS|FOOTER):[a-z0-9-]+ -->/.test(body)) {
+    const matches = [...body.matchAll(/<!-- @PRODUCT_(?:IMG|SPECS|FOOTER):([a-z0-9-]+) -->/g)]
+    const uniqueSlugs = [...new Set(matches.map(m => m[1]))]
+    const { data: prodData } = await supabaseAdmin
+      .from('products')
+      .select('slug, review_slug, name, origin_region, acidity_pct, price_czk, volume_ml, hero_image, available')
+      .in('review_slug', uniqueSlugs)
+      .eq('status', 'published')
+    const productMap = new Map(((prodData ?? []) as Top3ProductRow[]).map(p => [p.review_slug!, p]))
+    body = body
+      .replace(/<!-- @PRODUCT_IMG:([a-z0-9-]+) -->/g, (_, s) => {
+        const p = productMap.get(s); return p ? buildProductImgHtml(p) : ''
+      })
+      .replace(/<!-- @PRODUCT_SPECS:([a-z0-9-]+) -->/g, (_, s) => {
+        const p = productMap.get(s); return p ? buildProductSpecsHtml(p) : ''
+      })
+      .replace(/<!-- @PRODUCT_FOOTER:([a-z0-9-]+) -->/g, (_, s) => {
+        const p = productMap.get(s); return p ? buildProductFooterHtml(p) : ''
+      })
   }
 
   return { kind, slug, frontmatter: r.frontmatter, body }
@@ -178,6 +201,69 @@ function escapeHtml(s: string): string {
     .replace(/"/g, '&quot;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
+}
+
+// ---------- Per-product card injection (used by @PRODUCT_IMG/SPECS/FOOTER tokens) ----------
+
+interface Top3ProductRow {
+  slug: string
+  review_slug: string | null
+  name: string
+  origin_region: string | null
+  acidity_pct: number | null
+  price_czk: number | null
+  volume_ml: number
+  hero_image: string | null
+  available: boolean | null
+}
+
+function buildProductImgHtml(p: Top3ProductRow): string {
+  if (!p.hero_image) return ''
+  return `<img class="pd-img" src="${escapeHtml(p.hero_image)}" alt="${escapeHtml(p.name)}" loading="lazy" decoding="async">`
+}
+
+function buildProductSpecsHtml(p: Top3ProductRow): string {
+  const liters = (p.volume_ml ?? 5000) / 1000
+  const pricePer = p.price_czk != null ? Math.round(p.price_czk / liters) : null
+  const acid = formatAcidity(p.acidity_pct)
+  const priceFormatted = p.price_czk != null ? Math.round(p.price_czk).toLocaleString('cs-CZ') + ' Kč' : '—'
+  const perFormatted = pricePer != null ? pricePer + ' Kč/l' : '—'
+  return `<div class="product-detail-specs">
+      <div class="spec-item">
+        <div class="spec-val acid-${acid.band}">${acid.value}</div>
+        <div class="spec-key">Acidita</div>
+      </div>
+      <div class="spec-item">
+        <div class="spec-val">${priceFormatted}</div>
+        <div class="spec-key">Cena 5l</div>
+      </div>
+      <div class="spec-item">
+        <div class="spec-val">${perFormatted}</div>
+        <div class="spec-key">Cena/litr</div>
+      </div>
+    </div>`
+}
+
+function buildProductFooterHtml(p: Top3ProductRow): string {
+  const isAvailable = p.available !== false
+  const liters = (p.volume_ml ?? 5000) / 1000
+  const pricePer = p.price_czk != null ? Math.round(p.price_czk / liters) : null
+  const priceFormatted = p.price_czk != null ? Math.round(p.price_czk).toLocaleString('cs-CZ') + ' Kč' : '—'
+  const perFormatted = pricePer != null ? `${pricePer} Kč/l · plech 5l` : 'plech 5l'
+  const reviewHref = p.review_slug ? `/${p.review_slug}/` : `/${p.slug}/`
+  const ctaHtml = isAvailable
+    ? `<a href="/go/${escapeHtml(p.slug)}" class="btn-buy-big" rel="nofollow sponsored">Koupit na reckonasbavi.cz →</a>`
+    : `<span class="badge-sold-out">Momentálně vyprodáno</span>`
+  return `<div class="pd-footer">
+      <div class="pd-price-wrap">
+        <div class="pd-price">${priceFormatted}</div>
+        <div class="pd-price-per">${perFormatted}</div>
+      </div>
+      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+        <a href="${escapeHtml(reviewHref)}" class="btn-detail">Celá recenze →</a>
+        ${ctaHtml}
+      </div>
+    </div>`
 }
 
 function formatAcidity(pct: number | null): { value: string; band: 'low' | 'mid' | 'high' } {
