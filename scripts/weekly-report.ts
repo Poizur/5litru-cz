@@ -131,5 +131,14 @@ export async function generateWeeklyReport(isTest = false): Promise<{ sent: bool
 
   const result = await sendViaResend(recipient, subject, html)
   console.log('[weekly-report] send:', result)
+
+  // Audit trail — každý pokus o odeslání zalogujeme bez ohledu na výsledek
+  const { error: logErr } = await supabaseAdmin.from('email_events').insert({
+    recipient,
+    event_type: 'weekly_report',
+    ...(result.id ? { resend_id: result.id } : {}),
+  })
+  if (logErr) console.warn('[weekly-report] email_events log failed:', logErr.message)
+
   return { sent: result.delivered, html }
 }

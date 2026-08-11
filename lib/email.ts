@@ -118,3 +118,36 @@ export function renderAdminAlertHtml(opts: {
     ${cta}
   `)
 }
+
+export async function sendTrackingAlert(info: {
+  windowHours: number
+  lastClickAt: string | null
+}): Promise<void> {
+  const recipient = process.env.ADMIN_NOTIFICATION_EMAIL
+  if (!recipient) return
+  const subject = `⚠️ [5litru] Affiliate tracking: 0 kliků za ${info.windowHours}h`
+  const lastStr = info.lastClickAt
+    ? `Poslední organic klik: ${new Date(info.lastClickAt).toLocaleString('cs-CZ', { timeZone: 'Europe/Prague' })}`
+    : 'Žádný organic klik v historii'
+  const html = renderAdminAlertHtml({
+    title: `Tracking alert — 0 kliků za ${info.windowHours} hodin`,
+    bodyHtml: `
+      <p>Za posledních <strong>${info.windowHours} hodin</strong> nebyl zaznamenán žádný affiliate klik
+         s <code>is_test=false</code> na 5litru.cz.</p>
+      <p style="color:#888;font-size:13px">${lastStr}</p>
+      <p>Možné příčiny:</p>
+      <ol style="font-size:13px">
+        <li>5litru.cz je nedostupný nebo má build failure</li>
+        <li>/go/[slug] route přestala logovat (DB chyba)</li>
+        <li>Skutečně nula návštěvníků (možné ve všední den v noci)</li>
+        <li>Railway cron nestihl redeployment</li>
+      </ol>
+    `,
+    ctaLabel: 'Zkontrolovat admin',
+    ctaUrl: 'https://5litru.cz/admin',
+  })
+  const result = await sendViaResend(recipient, subject, html)
+  if (!result.delivered) {
+    console.error('[tracking-alert] send failed:', result.error)
+  }
+}
