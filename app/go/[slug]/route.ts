@@ -14,7 +14,18 @@ export async function GET(
   { params }: { params: Promise<{ slug: string }> },
 ) {
   const { slug } = await params
-  const isTest = req.nextUrl.searchParams.has('test')
+  const ua = (req.headers.get('user-agent') ?? '').toLowerCase()
+  const isTest =
+    req.nextUrl.searchParams.has('test') ||
+    ua === 'node' ||
+    ua.startsWith('curl/') ||
+    ua.includes('bot') ||
+    ua.includes('crawler') ||
+    ua.includes('spider') ||
+    ua.includes('jscrawler') ||
+    ua.includes('meta-webindexer') ||
+    ua.includes('semrush') ||
+    ua.includes('ahref')
   const market: Market = req.headers.get('x-market') === 'SK' ? 'SK' : 'CZ'
 
   // Resolve affiliate URL from DB — try with product_url_sk, fall back if column missing
