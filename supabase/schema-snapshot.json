@@ -1,0 +1,35 @@
+{
+  "_meta": {
+    "generated": "2026-08-12",
+    "note": "Spusť 'npm run schema:snapshot' po každé aplikované SQL migraci v Supabase UI."
+  },
+  "products": [
+    "id","slug","review_slug","name","brand","origin_country","origin_region","variety",
+    "volume_ml","acidity_pct","packaging","price_czk","retailer_id","product_url",
+    "affiliate_url","rating","hero_image","status","review_mdx","review_frontmatter",
+    "created_at","updated_at","published_at","available"
+  ],
+  "retailers": [
+    "id","slug","name","base_url","affiliate_network","ehub_tracking_hash","utm_campaign",
+    "active","created_at"
+  ],
+  "affiliate_clicks": [
+    "id","slug","referer","user_agent","ip_hash","is_test","clicked_at"
+  ],
+  "email_events": [
+    "id","recipient","event_type","resend_id","created_at"
+  ],
+  "ai_jobs": [
+    "id","product_id","job_type","input","output","model","status","cost_usd",
+    "error_message","created_at","completed_at"
+  ],
+  "product_images": [
+    "id","product_slug","url","alt","position","source","is_hero","created_at"
+  ],
+  "olivator_suggestions": [
+    "id","olivator_product_id","olivator_slug","name","brand_slug","origin_country",
+    "origin_region","variety","type","volume_ml","acidity","polyphenols","olivator_score",
+    "image_url","primary_retailer_slug","primary_offer_price","primary_offer_url","status",
+    "created_at","imported_at"
+  ]
+}

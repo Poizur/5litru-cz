@@ -4,9 +4,11 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "prebuild": "tsx --env-file=.env.local scripts/check-schema.ts && tsx scripts/check-prices.ts",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "schema:snapshot": "tsx --env-file=.env.local scripts/update-schema-snapshot.ts"
   },
   "engines": {
     "node": ">=20.18.0"

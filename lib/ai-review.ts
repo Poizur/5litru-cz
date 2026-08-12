@@ -18,6 +18,7 @@ import { join } from 'node:path'
 import { supabaseAdmin } from './supabase'
 import { buildAffiliateUrl } from './affiliate'
 import { sendViaResend, renderAdminAlertHtml } from './email'
+import { logLanguageValidation } from './validate-language'
 import type { Retailer } from './types'
 
 // ─────────────────────────────────────────────────────────────
@@ -1113,6 +1114,37 @@ Výstup je VŽDY JSON v code blocku — nic jiného.`,
 
   // 7. Parse Claude output
   const content = parseReviewContent(rawOutput)
+
+  // 7b. Fact-check + language validation — UZÁVĚRA-3, UZÁVĚRA-4
+  logLanguageValidation(rawOutput, 'cs', `ai-review:${slug}`)
+  {
+    const allText = [content.intro, content.sensory, content.comparison, content.conclusion].join(' ')
+    // Ověř aciditu v textu oproti DB hodnotě
+    if (s.acidity != null) {
+      const acidRe = /(\d+[,.]\d+)\s*%/g
+      for (const m of [...allText.matchAll(acidRe)]) {
+        const found = parseFloat(m[1].replace(',', '.'))
+        if (Math.abs(found - s.acidity) > 0.05 && found < 1.0) {
+          warnings.push(`fact-check: acidita v textu ${found}% ≠ DB ${s.acidity}%`)
+        }
+      }
+    }
+    // Ověř polyfenoly v textu oproti DB hodnotě
+    if (s.polyphenols != null) {
+      const polyRe = /(\d{2,4})\s*mg\/kg/gi
+      for (const m of [...allText.matchAll(polyRe)]) {
+        const found = parseInt(m[1])
+        if (Math.abs(found - s.polyphenols) > 60) {
+          warnings.push(`fact-check: polyfenoly v textu ${found} mg/kg ≠ DB ${s.polyphenols} mg/kg`)
+        }
+      }
+    }
+    if (warnings.filter(w => w.startsWith('fact-check:')).length) {
+      console.warn(`[ai-review] FACT-CHECK varování pro ${slug}:`, warnings.filter(w => w.startsWith('fact-check:')))
+    } else {
+      console.log(`[ai-review] FACT-CHECK ✓ OK — numerická fakta odpovídají DB`)
+    }
+  }
 
   // 8. Assemble HTML + MDX
   const htmlBody = buildReviewHtml(s, content, heureka, affiliateUrl, heroImagePath, slug)
