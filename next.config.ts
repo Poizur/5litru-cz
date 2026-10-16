@@ -91,7 +91,16 @@ const nextConfig: NextConfig = {
     ],
   },
   async redirects() {
-    return buildAffiliateRedirects()
+    return [
+      // Kanonická doména bez www; next.config redirect pokrývá i statické soubory (proxy.ts je vynechává)
+      {
+        source: '/:path*',
+        has: [{ type: 'host' as const, value: 'www.5litru.cz' }],
+        destination: 'https://5litru.cz/:path*',
+        statusCode: 301 as const,
+      },
+      ...(await buildAffiliateRedirects()),
+    ]
   },
 }
 

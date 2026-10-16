@@ -90,7 +90,7 @@ function emailShell(inner: string): string {
   <div style="background:white;border-radius:12px;padding:32px;border:1px solid ${BRAND.border}">
     ${inner}
     <p style="font-size:11px;color:${BRAND.muted};margin-top:32px;border-top:1px solid ${BRAND.border};padding-top:16px">
-      Generováno automaticky z 5litru.cz. Odpovědi → info@5litru.cz.
+      Generováno automaticky z 5litru.cz. Odpovědi → info@makyoutdoors.com.
     </p>
   </div>
 </body></html>`.trim()

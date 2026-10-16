@@ -4,6 +4,8 @@ import { supabaseAdmin } from '@/lib/supabase'
 import { buildAffiliateUrl } from '@/lib/affiliate'
 import type { Market } from '@/lib/market'
 
+const RATE_LIMIT_PER_MIN = 5
+
 // Affiliate redirect with server-side click logging.
 // /go/[slug] → log to affiliate_clicks → 302 → eHub → merchant
 //
@@ -65,18 +67,30 @@ export async function GET(
 
   const retailer = Array.isArray(product.retailer) ? product.retailer[0] : product.retailer
   const targetUrl = (market === 'SK' && product.product_url_sk) ? product.product_url_sk : product.product_url
-  const affiliateUrl = buildAffiliateUrl(targetUrl, retailer ?? {}, slug, market)
 
-  // Log click before redirect (await ensures it completes before Railway terminates the handler)
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? ''
   const ipHash = ip ? crypto.createHash('sha256').update(ip).digest('hex').slice(0, 16) : null
+
+  // >5 kliků/min z jedné IP = bot → přímo do obchodu, mimo eHUB (ochrana před click fraud)
+  let isRateLimited = false
+  if (ipHash) {
+    const { count } = await supabaseAdmin
+      .from('affiliate_clicks')
+      .select('id', { count: 'exact', head: true })
+      .eq('ip_hash', ipHash)
+      .gte('clicked_at', new Date(Date.now() - 60_000).toISOString())
+    isRateLimited = (count ?? 0) >= RATE_LIMIT_PER_MIN
+  }
+  const redirectUrl = isRateLimited
+    ? new URL(targetUrl, retailer?.base_url ?? undefined).toString()
+    : buildAffiliateUrl(targetUrl, retailer ?? {}, slug, market)
 
   const logBase = {
     slug,
     referer: req.headers.get('referer') ?? null,
     user_agent: req.headers.get('user-agent') ?? null,
     ip_hash: ipHash,
-    is_test: isTest,
+    is_test: isTest || isRateLimited,
   }
 
   const { error: logErr } = await supabaseAdmin.from('affiliate_clicks').insert({ ...logBase, market })
@@ -90,5 +104,5 @@ export async function GET(
     }
   }
 
-  return NextResponse.redirect(affiliateUrl, { status: 302 })
+  return NextResponse.redirect(redirectUrl, { status: 302 })
 }

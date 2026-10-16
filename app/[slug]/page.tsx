@@ -43,7 +43,9 @@ export default async function ContentPage({ params }: PageProps) {
   if (!item) notFound()
 
   const market = await getMarket()
-  let pageSchemas = Array.isArray(item.frontmatter.schemas) ? item.frontmatter.schemas : []
+  let pageSchemas: Record<string, unknown>[] = Array.isArray(item.frontmatter.schemas)
+    ? (item.frontmatter.schemas as Record<string, unknown>[])
+    : []
 
   // Dynamicky přepiš availability v Product schema podle aktuálního stavu produktu.
   // YAML/DB uchovává statickou hodnotu — správnou pravdu má products.available.

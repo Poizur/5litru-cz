@@ -51,6 +51,7 @@ export interface ProductRow {
   rating: number | null
   hero_image: string | null
   status: string
+  available?: boolean | null
   review_mdx: string | null
   review_frontmatter: Frontmatter | null
   published_at: string | null
