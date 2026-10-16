@@ -40,13 +40,19 @@ function collectFiles(dir: string, out: string[] = []): string[] {
 }
 
 function parseSelectCols(raw: string): string[] {
-  return raw.split(',')
+  // Vnořené relace `alias:tabulka(sloupce)` patří jiné tabulce — vynech je celé
+  let flat = raw
+  while (/\([^()]*\)/.test(flat)) flat = flat.replace(/[a-z_]*(?::[a-z_]+)?(?:![a-z_]+)?\s*\([^()]*\)/g, '')
+  return flat.split(',')
     .map(s => s.trim().split('(')[0].split(':')[0].trim())
     .filter(c => c && !c.startsWith('*') && /^[a-z_]+$/.test(c))
 }
 
 function checkFile(filePath: string, issues: Issue[]): void {
-  const lines = readFileSync(filePath, 'utf8').split('\n')
+  const source = readFileSync(filePath, 'utf8')
+  // Skripty nad DB Olivátoru mají jiné schéma než snapshot 5litru
+  if (/OLIVATOR_SUPABASE_(URL|ANON_KEY)/.test(source)) return
+  const lines = source.split('\n')
   let currentTable: string | null = null
   let currentTableLine = 0
 
