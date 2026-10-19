@@ -3,6 +3,7 @@ import crypto from 'node:crypto'
 import { supabaseAdmin } from '@/lib/supabase'
 import { buildAffiliateUrl } from '@/lib/affiliate'
 import type { Market } from '@/lib/market'
+import { botReason } from '@/lib/bot-detect'
 
 const RATE_LIMIT_PER_MIN = 5
 
@@ -16,18 +17,11 @@ export async function GET(
   { params }: { params: Promise<{ slug: string }> },
 ) {
   const { slug } = await params
-  const ua = (req.headers.get('user-agent') ?? '').toLowerCase()
-  const isTest =
-    req.nextUrl.searchParams.has('test') ||
-    ua === 'node' ||
-    ua.startsWith('curl/') ||
-    ua.includes('bot') ||
-    ua.includes('crawler') ||
-    ua.includes('spider') ||
-    ua.includes('jscrawler') ||
-    ua.includes('meta-webindexer') ||
-    ua.includes('semrush') ||
-    ua.includes('ahref')
+  const userAgent = req.headers.get('user-agent') ?? ''
+  const referer = req.headers.get('referer') ?? ''
+  const hasOrigin = Boolean(referer || req.nextUrl.searchParams.get('utm_source'))
+  const obviousBot = botReason(userAgent, hasOrigin)
+  const isTest = req.nextUrl.searchParams.has('test') || obviousBot != null
   const market: Market = req.headers.get('x-market') === 'SK' ? 'SK' : 'CZ'
 
   // Resolve affiliate URL from DB — try with product_url_sk, fall back if column missing
@@ -81,16 +75,18 @@ export async function GET(
       .gte('clicked_at', new Date(Date.now() - 60_000).toISOString())
     isRateLimited = (count ?? 0) >= RATE_LIMIT_PER_MIN
   }
-  const redirectUrl = isRateLimited
+  const redirectUrl = isRateLimited || obviousBot
     ? new URL(targetUrl, retailer?.base_url ?? undefined).toString()
     : buildAffiliateUrl(targetUrl, retailer ?? {}, slug, market)
 
   const logBase = {
     slug,
-    referer: req.headers.get('referer') ?? null,
-    user_agent: req.headers.get('user-agent') ?? null,
+    referer: referer || null,
+    user_agent: userAgent || null,
     ip_hash: ipHash,
     is_test: isTest || isRateLimited,
+    // Klik bez refereru se přesměruje normálně, ale do lidských kliků se nepočítá
+    unverified: !hasOrigin && !isTest && !isRateLimited,
   }
 
   const { error: logErr } = await supabaseAdmin.from('affiliate_clicks').insert({ ...logBase, market })

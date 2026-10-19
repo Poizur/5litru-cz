@@ -1,6 +1,6 @@
 {
   "_meta": {
-    "generated": "2026-08-12",
+    "generated": "2026-10-19",
     "note": "Spusť npm run schema:snapshot po každé aplikované SQL migraci."
   },
   "products": [
@@ -50,7 +50,8 @@
     "ip_hash",
     "is_test",
     "clicked_at",
-    "market"
+    "market",
+    "unverified"
   ],
   "email_events": [
     "id",
