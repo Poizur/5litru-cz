@@ -60,6 +60,10 @@ export async function GET(
   }
 
   const retailer = Array.isArray(product.retailer) ? product.retailer[0] : product.retailer
+  // Pojistka: obchod mimo spolupráci (active=false) nikdy neposíláme do e-shopu — zpět na recenzi produktu.
+  if (retailer?.active === false) {
+    return NextResponse.redirect(new URL(`/${product.slug}/`, req.url), 302)
+  }
   const targetUrl = (market === 'SK' && product.product_url_sk) ? product.product_url_sk : product.product_url
 
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? ''

@@ -169,7 +169,7 @@ export async function runOlivatorSync(triggeredBy: SyncTrigger): Promise<SyncSum
       price: number | null
       in_stock: boolean | null
       manual_override: boolean | null
-      retailer: { slug: string | null } | { slug: string | null }[] | null
+      retailer: { slug: string | null; is_active?: boolean } | { slug: string | null; is_active?: boolean }[] | null
     }>
   }> = []
   {
@@ -178,7 +178,7 @@ export async function runOlivatorSync(triggeredBy: SyncTrigger): Promise<SyncSum
       .select(`
         id, slug, name, brand_slug, origin_country, origin_region, variety, type,
         volume_ml, acidity, polyphenols, olivator_score, image_url,
-        offers:product_offers(product_url, price, in_stock, manual_override, retailer:retailers(slug))
+        offers:product_offers(product_url, price, in_stock, manual_override, retailer:retailers(slug, is_active))
       `)
       .eq('status', 'active')
       .gte('volume_ml', VOLUME_MIN)
@@ -210,6 +210,9 @@ export async function runOlivatorSync(triggeredBy: SyncTrigger): Promise<SyncSum
   for (const p of olivProducts) {
     for (const o of p.offers ?? []) {
       if (!o.product_url) continue
+      // Obchod v karanténě Olivátoru (mimo spolupráci) se do 5litru nepřebírá.
+      const retailerRow = Array.isArray(o.retailer) ? o.retailer[0] : o.retailer
+      if (retailerRow?.is_active === false) continue
       const rs = Array.isArray(o.retailer) ? o.retailer[0]?.slug ?? null : o.retailer?.slug ?? null
       offersByUrl.set(o.product_url, {
         olivator_product_id: p.id,
