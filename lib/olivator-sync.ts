@@ -42,6 +42,12 @@ const RECKONASBAVI_SLUG = 'reckonasbavi'
 const VOLUME_MIN = 4500
 const VOLUME_MAX = 5500
 
+// Cena, kterou zákazník skutečně zaplatí: akční cena z feedu, pokud je nižší než běžná
+function effectivePrice(price: number | null, actionPrice: number | null | undefined): number | null {
+  if (price == null) return actionPrice ?? null
+  return actionPrice != null && actionPrice < price ? actionPrice : price
+}
+
 function olivatorClient(): SupabaseClient {
   const url = process.env.OLIVATOR_SUPABASE_URL
   const key = process.env.OLIVATOR_SUPABASE_ANON_KEY
@@ -167,6 +173,7 @@ export async function runOlivatorSync(triggeredBy: SyncTrigger): Promise<SyncSum
     offers: Array<{
       product_url: string | null
       price: number | null
+      action_price?: number | null
       in_stock: boolean | null
       manual_override: boolean | null
       retailer: { slug: string | null; is_active?: boolean } | { slug: string | null; is_active?: boolean }[] | null
@@ -178,7 +185,7 @@ export async function runOlivatorSync(triggeredBy: SyncTrigger): Promise<SyncSum
       .select(`
         id, slug, name, brand_slug, origin_country, origin_region, variety, type,
         volume_ml, acidity, polyphenols, olivator_score, image_url,
-        offers:product_offers(product_url, price, in_stock, manual_override, retailer:retailers(slug, is_active))
+        offers:product_offers(product_url, price, action_price, in_stock, manual_override, retailer:retailers(slug, is_active))
       `)
       .eq('status', 'active')
       .gte('volume_ml', VOLUME_MIN)
@@ -217,7 +224,7 @@ export async function runOlivatorSync(triggeredBy: SyncTrigger): Promise<SyncSum
       offersByUrl.set(o.product_url, {
         olivator_product_id: p.id,
         product_url: o.product_url,
-        price: o.price,
+        price: effectivePrice(o.price, o.action_price),
         in_stock: o.in_stock,
         manual_override: o.manual_override,
         retailer_slug: rs,
@@ -325,7 +332,7 @@ export async function runOlivatorSync(triggeredBy: SyncTrigger): Promise<SyncSum
       olivator_score: p.olivator_score,
       image_url: p.image_url,
       primary_retailer_slug: RECKONASBAVI_SLUG,
-      primary_offer_price: reckonas.price,
+      primary_offer_price: effectivePrice(reckonas.price, reckonas.action_price),
       primary_offer_url: reckonas.product_url,
       status: 'new',
     })

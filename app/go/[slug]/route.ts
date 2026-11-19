@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'node:crypto'
 import { supabaseAdmin } from '@/lib/supabase'
 import { buildAffiliateUrl } from '@/lib/affiliate'
-import type { Market } from '@/lib/market'
-import { botReason } from '@/lib/bot-detect'
+import { getSiteUrl, type Market } from '@/lib/market'
+import { botReason, isPrefetch } from '@/lib/bot-detect'
 
 const RATE_LIMIT_PER_MIN = 5
 
@@ -16,6 +16,10 @@ export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ slug: string }> },
 ) {
+  if (isPrefetch(req)) {
+    return new Response(null, { status: 204, headers: { 'cache-control': 'no-store' } })
+  }
+
   const { slug } = await params
   const userAgent = req.headers.get('user-agent') ?? ''
   const referer = req.headers.get('referer') ?? ''
@@ -23,10 +27,12 @@ export async function GET(
   const obviousBot = botReason(userAgent, hasOrigin)
   const isTest = req.nextUrl.searchParams.has('test') || obviousBot != null
   const market: Market = req.headers.get('x-market') === 'SK' ? 'SK' : 'CZ'
+  const siteUrl = getSiteUrl(market)
 
   // Resolve affiliate URL from DB — try with product_url_sk, fall back if column missing
   type ProductData = {
     slug: string
+    review_slug: string | null
     product_url: string | null
     product_url_sk?: string | null
     retailer: { utm_campaign: string | null; ehub_tracking_hash: string | null; base_url: string | null; active: boolean | null } | null
@@ -36,7 +42,7 @@ export async function GET(
 
   const resFull = await supabaseAdmin
     .from('products')
-    .select('slug, product_url, product_url_sk, retailer:retailers(utm_campaign, ehub_tracking_hash, base_url, active)')
+    .select('slug, review_slug, product_url, product_url_sk, retailer:retailers(utm_campaign, ehub_tracking_hash, base_url, active)')
     .eq('slug', slug)
     .eq('status', 'published')
     .maybeSingle()
@@ -47,7 +53,7 @@ export async function GET(
     // product_url_sk column not yet migrated — select without it
     const resFallback = await supabaseAdmin
       .from('products')
-      .select('slug, product_url, retailer:retailers(utm_campaign, ehub_tracking_hash, base_url, active)')
+      .select('slug, review_slug, product_url, retailer:retailers(utm_campaign, ehub_tracking_hash, base_url, active)')
       .eq('slug', slug)
       .eq('status', 'published')
       .maybeSingle()
@@ -55,14 +61,15 @@ export async function GET(
     if (resFallback.error) console.error('[go] product fetch failed:', resFallback.error.message)
   }
 
+  // Vždy absolutní veřejná adresa — req.url je za proxy interní (localhost:8080)
   if (!product?.product_url) {
-    return NextResponse.redirect(new URL('/', req.url))
+    return NextResponse.redirect(`${siteUrl}/`, 302)
   }
 
   const retailer = Array.isArray(product.retailer) ? product.retailer[0] : product.retailer
   // Pojistka: obchod mimo spolupráci (active=false) nikdy neposíláme do e-shopu — zpět na recenzi produktu.
   if (retailer?.active === false) {
-    return NextResponse.redirect(new URL(`/${product.slug}/`, req.url), 302)
+    return NextResponse.redirect(`${siteUrl}/${product.review_slug ?? product.slug}/`, 302)
   }
   const targetUrl = (market === 'SK' && product.product_url_sk) ? product.product_url_sk : product.product_url
 

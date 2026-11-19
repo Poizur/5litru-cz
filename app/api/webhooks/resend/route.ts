@@ -3,9 +3,9 @@
 // to a single `email_events` table (no newsletter sends tracking yet).
 //
 // Setup: Resend dashboard → Webhooks → URL: https://5litru.cz/api/webhooks/resend
-// Set RESEND_WEBHOOK_SECRET=whsec_… for signature verification (production).
+// Set RESEND_WEBHOOK_SECRET=whsec_… for signature verification.
 //
-// Without RESEND_WEBHOOK_SECRET the endpoint accepts all events (dev fallback).
+// Without RESEND_WEBHOOK_SECRET the endpoint rejects every event (401) — no dev fallback.
 
 import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'node:crypto'
@@ -37,15 +37,11 @@ const TYPE_MAP: Record<string, string> = {
 
 function verifySvixSignature(
   rawBody: string,
+  secret: string,
   svixId: string | null,
   svixTimestamp: string | null,
   svixSignature: string | null,
 ): boolean {
-  const secret = process.env.RESEND_WEBHOOK_SECRET
-  if (!secret) {
-    console.warn('[resend webhook] RESEND_WEBHOOK_SECRET not set — accepting without verification')
-    return true
-  }
   if (!svixId || !svixTimestamp || !svixSignature) return false
 
   // Replay protection: reject if timestamp older than 5 minutes
@@ -74,9 +70,15 @@ function verifySvixSignature(
 }
 
 export async function POST(request: NextRequest) {
+  const secret = process.env.RESEND_WEBHOOK_SECRET
+  if (!secret) {
+    console.error('[resend webhook] RESEND_WEBHOOK_SECRET not set — rejecting event')
+    return NextResponse.json({ error: 'webhook secret not configured' }, { status: 401 })
+  }
   const rawBody = await request.text()
   const ok = verifySvixSignature(
     rawBody,
+    secret,
     request.headers.get('svix-id'),
     request.headers.get('svix-timestamp'),
     request.headers.get('svix-signature'),

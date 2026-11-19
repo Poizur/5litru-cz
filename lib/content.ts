@@ -251,7 +251,7 @@ function buildProductFooterHtml(p: Top3ProductRow, market: Market): string {
   const locale = getLocale(market)
   const reviewHref = p.review_slug ? `/${p.review_slug}/` : `/${p.slug}/`
   const ctaHtml = isAvailable
-    ? `<a href="/go/${escapeHtml(p.slug)}" class="btn-buy-big" rel="nofollow sponsored">${escapeHtml(locale.buyAt)}</a>`
+    ? `<a href="/go/${escapeHtml(p.slug)}/" class="btn-buy-big" rel="nofollow sponsored">${escapeHtml(locale.buyAt)}</a>`
     : `<span class="badge-sold-out">${escapeHtml(locale.soldOut)}</span>`
   return `<div class="pd-footer">
       <div class="pd-price-wrap">
@@ -277,7 +277,7 @@ function buildProductAvailabilityHtml(p: Top3ProductRow, market: Market): string
   const isAvailable = p.available !== false
   const locale = getLocale(market)
   if (isAvailable) {
-    return `<a href="/go/${escapeHtml(p.slug)}" class="btn-buy" rel="nofollow sponsored">${escapeHtml(locale.buy)}</a>`
+    return `<a href="/go/${escapeHtml(p.slug)}/" class="btn-buy" rel="nofollow sponsored">${escapeHtml(locale.buy)}</a>`
   }
   return `<span class="badge-sold-out">${escapeHtml(locale.soldOut)}</span>`
 }
@@ -388,7 +388,7 @@ async function buildDynamicComparisonTable(market: Market = 'CZ'): Promise<strin
     const region = [p.origin_region, p.origin_country].filter(Boolean).join(' · ') || '—'
     const isTopPick = isAvailable && i < 3
     const ctaCell = isAvailable
-      ? `<a href="/go/${p.slug}" class="btn-table" rel="nofollow sponsored">${escapeHtml(locale.buy)}</a>`
+      ? `<a href="/go/${escapeHtml(p.slug)}/" class="btn-table" rel="nofollow sponsored">${escapeHtml(locale.buy)}</a>`
       : `<span class="badge-sold-out">${escapeHtml(locale.soldOut)}</span>`
     return `<tr${isTopPick ? ' class="top-pick"' : ''}${!isAvailable ? ' class="row-sold-out"' : ''}>
             <td>

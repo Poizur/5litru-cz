@@ -22,3 +22,12 @@ export function botReason(userAgent: string, hasOrigin: boolean): string | null 
   }
   return null
 }
+
+// Prefetch (Next router / browser speculation) není klik — nelogovat, nepřesměrovávat
+export function isPrefetch(req: Request): boolean {
+  const h = req.headers
+  if (h.has('next-router-prefetch')) return true
+  if (h.get('purpose') === 'prefetch') return true
+  if (h.get('sec-purpose')?.includes('prefetch')) return true
+  return new URL(req.url).searchParams.has('_rsc')
+}
