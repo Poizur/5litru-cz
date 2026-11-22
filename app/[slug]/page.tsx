@@ -47,25 +47,30 @@ export default async function ContentPage({ params }: PageProps) {
     ? (item.frontmatter.schemas as Record<string, unknown>[])
     : []
 
-  // Dynamicky přepiš availability v Product schema podle aktuálního stavu produktu.
-  // YAML/DB uchovává statickou hodnotu — správnou pravdu má products.available.
+  // Dynamicky přepiš cenu a availability v Product schema podle aktuálního stavu produktu.
+  // YAML/DB uchovává statickou hodnotu — pravdu mají products.price_czk / price_eur / available
+  // (ceny se synchronizují z Olivátoru, JSON-LD musí sedět s tím, co je na stránce).
   if (item.kind === 'review' && item.product != null) {
-    const isAvailable = item.product.available !== false
-    const schemaAvailability = isAvailable
+    const product = item.product
+    const schemaAvailability = product.available !== false
       ? 'https://schema.org/InStock'
       : 'https://schema.org/OutOfStock'
+    const offerPrice: Record<string, string> =
+      market === 'SK' && product.price_eur != null
+        ? { price: product.price_eur.toFixed(2), priceCurrency: 'EUR' }
+        : product.price_czk != null
+          ? { price: String(Math.round(product.price_czk)), priceCurrency: 'CZK' }
+          : {}
+    const patchOffers = (node: Record<string, unknown>): Record<string, unknown> => {
+      const existingOffers = node.offers as Record<string, unknown> | undefined
+      if (!existingOffers) return node
+      return { ...node, offers: { ...existingOffers, ...offerPrice, availability: schemaAvailability } }
+    }
     pageSchemas = pageSchemas.map((s: Record<string, unknown>) => {
+      if (s['@type'] === 'Product') return patchOffers(s)
       const reviewed = s.itemReviewed as Record<string, unknown> | undefined
       if (!reviewed || reviewed['@type'] !== 'Product') return s
-      const existingOffers = reviewed.offers as Record<string, unknown> | undefined
-      if (!existingOffers) return s
-      return {
-        ...s,
-        itemReviewed: {
-          ...reviewed,
-          offers: { ...existingOffers, availability: schemaAvailability },
-        },
-      }
+      return { ...s, itemReviewed: patchOffers(reviewed) }
     })
   }
 

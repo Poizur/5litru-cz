@@ -48,8 +48,8 @@ schemas:
         acceptedAnswer:
           '@type': Answer
           text: >-
-            Řecké extra panenské oleje v 5l plechu se pohybují od cca 258 Kč/l
-            za standardní kvalitu po 420 Kč/l za prémiové farmářské oleje.
+            Řecké extra panenské oleje v 5l plechu se pohybují od cca <!-- @PER_MIN -->
+            za standardní kvalitu po <!-- @PER_MAX --> za prémiové farmářské oleje.
             Prémiové oleje s aciditou pod 0,4 % vychází zpravidla dráže.
             Aktuální ceny ověřte přímo na stránce produktu.
       - '@type': Question
@@ -295,7 +295,7 @@ footer { background:var(--dark); padding:52px 40px 36px; }
     </div>
     <h1>Nejlepší olivový olej 5l <em>2026</em> — srovnání 10 řeckých olejů</h1>
     <p class="article-hero-desc">
-      Porovnáváme všechny dostupné řecké olivové oleje v pětilitrovém plechovém balení. Acidity od 0,26 %, ceny od 258 Kč/l. Bez reklam, bez sponzorovaného pořadí.
+      Porovnáváme všechny dostupné řecké olivové oleje v pětilitrovém plechovém balení. Acidity od 0,26 %, ceny od <!-- @PER_MIN -->. Bez reklam, bez sponzorovaného pořadí.
     </p>
     <div class="article-meta">
       <div><strong>Počet produktů:</strong> 10 olejů</div>
@@ -459,19 +459,19 @@ footer { background:var(--dark); padding:52px 40px 36px; }
       <span class="region-icon">🏔️</span>
       <div class="region-name">Kréta</div>
       <div class="region-desc">Odrůda Koroneiki, intenzivní aroma, nejlepší cena za litr. 4 oleje.</div>
-      <div class="region-count">od 1 290 Kč · 4 oleje →</div>
+      <div class="region-count">od <!-- @PRICE_MIN:motakis-recenze,sitia-premium-gold-recenze,orino-sitia-recenze,pallada-kreta-recenze --> · 4 oleje →</div>
     </a>
     <a href="/kalamata-olivovy-olej-5l" class="region-box">
       <span class="region-icon">🌊</span>
       <div class="region-name">Kalamata &amp; Peloponés</div>
       <div class="region-desc">Plná bohatá chuť. Domov nejznámější řecké odrůdy. 4 oleje.</div>
-      <div class="region-count">od 1 390 Kč · 4 oleje →</div>
+      <div class="region-count">od <!-- @PRICE_MIN:theoni-kalamata-recenze,erato-kalamata-recenze,nikolos-kalamata-recenze,neotis-manaki-recenze,corinto-pelopones-olivovy-olej-manaki-0-3-recenze,corinto-pelopones-extra-panensky-manaki-0-4-recenze --> · 4 oleje →</div>
     </a>
     <a href="/recky-olivovy-olej-5l" class="region-box">
       <span class="region-icon">🏝️</span>
       <div class="region-name">Řecké ostrovy</div>
       <div class="region-desc">Korfu a Zakynthos — ostrovní lehkost a jemná chuť. 2 oleje.</div>
-      <div class="region-count">od 1 490 Kč · 2 oleje →</div>
+      <div class="region-count">od <!-- @PRICE_MIN:evoilino-korfu-recenze,petromilos-zakynthos-recenze --> · 2 oleje →</div>
     </a>
   </div>
 
@@ -502,7 +502,7 @@ footer { background:var(--dark); padding:52px 40px 36px; }
             <div class="spec-key">Acidita</div>
           </div>
           <div class="spec-item">
-            <div class="spec-val">1 549 Kč</div>
+            <div class="spec-val"><!-- @PRODUCT_PRICE:pallada-kreta-recenze --></div>
             <div class="spec-key">Cena 5l</div>
           </div>
         </div>
@@ -518,8 +518,8 @@ footer { background:var(--dark); padding:52px 40px 36px; }
         </div>
         <div class="pd-footer">
           <div class="pd-price-wrap">
-            <div class="pd-price">1 549 Kč</div>
-            <div class="pd-price-per">310 Kč/l · ověřte cenu</div>
+            <div class="pd-price"><!-- @PRODUCT_PRICE:pallada-kreta-recenze --></div>
+            <div class="pd-price-per"><!-- @PRODUCT_PER:pallada-kreta-recenze --> · ověřte cenu</div>
           </div>
           <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
             <a href="/pallada-kreta-recenze" class="btn-detail">Celá recenze →</a>
@@ -545,7 +545,7 @@ footer { background:var(--dark); padding:52px 40px 36px; }
             <div class="spec-key">Acidita</div>
           </div>
           <div class="spec-item">
-            <div class="spec-val">1 590 Kč</div>
+            <div class="spec-val"><!-- @PRODUCT_PRICE:orino-sitia-recenze --></div>
             <div class="spec-key">Cena 5l</div>
           </div>
         </div>
@@ -556,8 +556,8 @@ footer { background:var(--dark); padding:52px 40px 36px; }
         </p>
         <div class="pd-footer">
           <div class="pd-price-wrap">
-            <div class="pd-price">1 590 Kč</div>
-            <div class="pd-price-per">318 Kč/l · ověřte cenu</div>
+            <div class="pd-price"><!-- @PRODUCT_PRICE:orino-sitia-recenze --></div>
+            <div class="pd-price-per"><!-- @PRODUCT_PER:orino-sitia-recenze --> · ověřte cenu</div>
           </div>
           <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
             <a href="/orino-sitia-recenze" class="btn-detail">Celá recenze →</a>
@@ -588,14 +588,14 @@ footer { background:var(--dark); padding:52px 40px 36px; }
         </div>
         <div class="product-detail-specs">
           <div class="spec-item"><div class="spec-val">0,42%</div><div class="spec-key">Acidita</div></div>
-          <div class="spec-item"><div class="spec-val">1 549 Kč</div><div class="spec-key">Cena 5l</div></div>
+          <div class="spec-item"><div class="spec-val"><!-- @PRODUCT_PRICE:erato-kalamata-recenze --></div><div class="spec-key">Cena 5l</div></div>
         </div>
       </div>
       <div class="product-detail-body">
         <div class="pd-footer">
           <div class="pd-price-wrap">
-            <div class="pd-price">1 549 Kč</div>
-            <div class="pd-price-per">310 Kč/l · ověřte cenu</div>
+            <div class="pd-price"><!-- @PRODUCT_PRICE:erato-kalamata-recenze --></div>
+            <div class="pd-price-per"><!-- @PRODUCT_PER:erato-kalamata-recenze --> · ověřte cenu</div>
           </div>
           <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
             <a href="/erato-kalamata-recenze" class="btn-detail">Celá recenze →</a>
@@ -614,17 +614,17 @@ footer { background:var(--dark); padding:52px 40px 36px; }
         </div>
         <div class="product-detail-specs">
           <div class="spec-item"><div class="spec-val"><span style="font-family:'Jost',sans-serif;">≤</span>0,8%</div><div class="spec-key">Acidita</div></div>
-          <div class="spec-item"><div class="spec-val">1 390 Kč</div><div class="spec-key">Cena 5l</div></div>
+          <div class="spec-item"><div class="spec-val"><!-- @PRODUCT_PRICE:theoni-kalamata-recenze --></div><div class="spec-key">Cena 5l</div></div>
         </div>
       </div>
       <div class="product-detail-body">
         <p class="pd-desc">
-          Theoni je entry-level olej z oblasti Arcadia na Peloponésu. Cena 1 390 Kč (278 Kč/l) ho řadí mezi cenově dostupnější volby z peloponéského regionu. Vhodný pro každodenní vaření.
+          Theoni je entry-level olej z oblasti Arcadia na Peloponésu. Cena <!-- @PRODUCT_PRICE:theoni-kalamata-recenze --> (<!-- @PRODUCT_PER:theoni-kalamata-recenze -->) ho řadí mezi cenově dostupnější volby z peloponéského regionu. Vhodný pro každodenní vaření.
         </p>
         <div class="pd-footer">
           <div class="pd-price-wrap">
-            <div class="pd-price">1 390 Kč</div>
-            <div class="pd-price-per">278 Kč/l · ověřte cenu</div>
+            <div class="pd-price"><!-- @PRODUCT_PRICE:theoni-kalamata-recenze --></div>
+            <div class="pd-price-per"><!-- @PRODUCT_PER:theoni-kalamata-recenze --> · ověřte cenu</div>
           </div>
           <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
             <a href="/theoni-kalamata-recenze" class="btn-detail">Celá recenze →</a>
@@ -655,17 +655,17 @@ footer { background:var(--dark); padding:52px 40px 36px; }
         </div>
         <div class="product-detail-specs">
           <div class="spec-item"><div class="spec-val" style="color:#2d7a2d;">0,36%</div><div class="spec-key">Acidita</div></div>
-          <div class="spec-item"><div class="spec-val">1 490 Kč</div><div class="spec-key">Cena 5l</div></div>
+          <div class="spec-item"><div class="spec-val"><!-- @PRODUCT_PRICE:petromilos-zakynthos-recenze --></div><div class="spec-key">Cena 5l</div></div>
         </div>
       </div>
       <div class="product-detail-body">
         <p class="pd-desc">
-          Petromilos ze Zakynthosu nabídne za 1 490 Kč tj. 298 Kč/l výbornou aciditu 0,36 % a typický ostrovní charakter. Sklizeň 2024/25.
+          Petromilos ze Zakynthosu nabídne za <!-- @PRODUCT_PRICE:petromilos-zakynthos-recenze --> tj. <!-- @PRODUCT_PER:petromilos-zakynthos-recenze --> výbornou aciditu 0,36 % a typický ostrovní charakter. Sklizeň 2024/25.
         </p>
         <div class="pd-footer">
           <div class="pd-price-wrap">
-            <div class="pd-price">1 490 Kč</div>
-            <div class="pd-price-per">298 Kč/l · ověřte cenu</div>
+            <div class="pd-price"><!-- @PRODUCT_PRICE:petromilos-zakynthos-recenze --></div>
+            <div class="pd-price-per"><!-- @PRODUCT_PER:petromilos-zakynthos-recenze --> · ověřte cenu</div>
           </div>
           <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
             <a href="/petromilos-zakynthos-recenze" class="btn-detail">Celá recenze →</a>
@@ -688,7 +688,7 @@ footer { background:var(--dark); padding:52px 40px 36px; }
         </div>
         <div class="product-detail-specs">
           <div class="spec-item"><div class="spec-val" style="color:#2d7a2d;">0,32%</div><div class="spec-key">Acidita</div></div>
-          <div class="spec-item"><div class="spec-val">2 099 Kč</div><div class="spec-key">Cena 5l</div></div>
+          <div class="spec-item"><div class="spec-val"><!-- @PRODUCT_PRICE:evoilino-korfu-recenze --></div><div class="spec-key">Cena 5l</div></div>
         </div>
       </div>
       <div class="product-detail-body">
@@ -697,8 +697,8 @@ footer { background:var(--dark); padding:52px 40px 36px; }
         </p>
         <div class="pd-footer">
           <div class="pd-price-wrap">
-            <div class="pd-price">2 099 Kč</div>
-            <div class="pd-price-per">420 Kč/l · ověřte cenu</div>
+            <div class="pd-price"><!-- @PRODUCT_PRICE:evoilino-korfu-recenze --></div>
+            <div class="pd-price-per"><!-- @PRODUCT_PER:evoilino-korfu-recenze --> · ověřte cenu</div>
           </div>
           <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
             <a href="/evoilino-korfu-recenze" class="btn-detail">Celá recenze →</a>
@@ -753,7 +753,7 @@ footer { background:var(--dark); padding:52px 40px 36px; }
       <p>Téměř všechny oleje v nabídce jsou z odrůdy <strong>Koroneiki</strong> — nejrozšířenější řecké odrůdy, která dává oleji typické intenzivní aroma. Výjimkou jsou oleje z odrůdy <strong>Manaki</strong> (CORINTO Peloponés, CORINTO BIO) — sametově jemné, bez hořkosti, ideální pro děti.</p>
 
       <h3>5. Cena za litr — orientační přehled</h3>
-      <p>Olivový olej 5l v plechovce vyjde výrazně levněji než ekvivalentní množství v menších lahvích. Cena za litr se v nabídce pohybuje od 258 Kč/l po 420 Kč/l. Tři přirozené cenové kategorie:</p>
+      <p>Olivový olej 5l v plechovce vyjde výrazně levněji než ekvivalentní množství v menších lahvích. Cena za litr se v nabídce pohybuje od <!-- @PER_MIN --> po <!-- @PER_MAX -->. Tři přirozené cenové kategorie:</p>
       <div class="price-tiers">
         <div class="price-tier">
           <div class="price-tier-label">Každodenní</div>
@@ -808,7 +808,7 @@ footer { background:var(--dark); padding:52px 40px 36px; }
       </details>
       <details class="faq-item">
         <summary class="faq-q">Kolik stojí kvalitní olivový olej 5l?</summary>
-        <p class="faq-a">Řecké extra panenské oleje v 5l plechu se pohybují od <strong>1 290 Kč</strong> (258 Kč/l, Motakis) po <strong>2 099 Kč</strong> (420 Kč/l, Evoilino Korfu). Prémiové oleje s aciditou pod 0,4 % začínají přibližně na 1 490 Kč. Vždy ověřte aktuální cenu před objednávkou.</p>
+        <p class="faq-a">Řecké extra panenské oleje v 5l plechu se pohybují od <strong><!-- @PRICE_MIN --></strong> (<!-- @PER_MIN -->) po <strong><!-- @PRICE_MAX --></strong> (<!-- @PER_MAX -->). Prémiové oleje s aciditou pod 0,4 % začínají na <!-- @PRICE_MIN:sitia-premium-gold-recenze,styliana-amazona-extra-panensky-arbequina-0-2-recenze,neotis-manaki-recenze,corinto-pelopones-olivovy-olej-manaki-0-3-recenze,evoilino-korfu-recenze,petromilos-zakynthos-recenze,nikolos-kalamata-recenze,orino-sitia-recenze -->. Vždy ověřte aktuální cenu před objednávkou.</p>
       </details>
       <details class="faq-item">
         <summary class="faq-q">Je řecký olivový olej lepší než italský?</summary>

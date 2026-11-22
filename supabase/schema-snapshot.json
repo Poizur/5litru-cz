@@ -1,7 +1,7 @@
 {
   "_meta": {
-    "generated": "2026-10-19",
-    "note": "Spusť npm run schema:snapshot po každé aplikované SQL migraci."
+    "generated": "2026-11-22",
+    "note": "Spusť npm run schema:snapshot po každé aplikované SQL migraci. (2026-11-22: sloupce olivator_score/olivator_product_id/olivator_slug doplněny ručně podle migrace 20261122_olivator_score.sql — po její aplikaci snapshot znovu vygeneruj.)"
   },
   "products": [
     "id",
@@ -29,7 +29,10 @@
     "published_at",
     "available",
     "price_eur",
-    "product_url_sk"
+    "product_url_sk",
+    "olivator_score",
+    "olivator_product_id",
+    "olivator_slug"
   ],
   "retailers": [
     "id",

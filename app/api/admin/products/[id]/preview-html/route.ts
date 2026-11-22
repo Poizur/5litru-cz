@@ -9,6 +9,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { isAdminAuthenticated } from '@/lib/admin-auth'
 import { supabaseAdmin } from '@/lib/supabase'
+import { applyProductTokens } from '@/lib/content'
 import matter from 'gray-matter'
 
 export const dynamic = 'force-dynamic'
@@ -40,8 +41,8 @@ export async function GET(
     })
   }
 
-  // Strip frontmatter so iframe gets pure HTML document.
-  const body = matter(raw).content || raw
+  // Strip frontmatter so iframe gets pure HTML document; dosadit tokeny cen/Score jako na webu (včetně draftů).
+  const body = await applyProductTokens(matter(raw).content || raw, 'CZ', { includeDrafts: true })
 
   return new NextResponse(body, {
     status: 200,

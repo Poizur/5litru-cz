@@ -65,6 +65,11 @@ async function buildAffiliateRedirects() {
 const nextConfig: NextConfig = {
   trailingSlash: true,
   poweredByHeader: false,
+  // Zapečeno při buildu pro /api/health: čas buildu a SHA commitu (Railway ho dává i za běhu).
+  env: {
+    BUILD_TIME: new Date().toISOString(),
+    BUILD_COMMIT_SHA: process.env.RAILWAY_GIT_COMMIT_SHA ?? '',
+  },
   async headers() {
     return [
       {

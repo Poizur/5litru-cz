@@ -503,6 +503,7 @@ PRAVIDLA OBSAHU — BEZPODMÍNEČNÁ:
 - Veškerá data (acidita, polyfenoly, certifikace) cituj jako "dle výrobce" nebo "dle etikety"
 - ŽÁDNÉ zdravotní sliby: nepiš "snižuje cholesterol", "předchází nemocem", "léčivé účinky"
 - CENY V TEXTU ZAKÁZÁNY — nepiš "za 1 490 Kč" ani "cena XX Kč/litr" — ceny zobrazuje web dynamicky
+- ČÍSLO OLIVATOR SKÓRE V TEXTU ZAKÁZÁNO — nepiš "skóre 55/100"; skóre se v Olivátoru přepočítává a web ho zobrazuje dynamicky z DB. Hodnoť jen slovně (bez čísla)
 - Pokud hodnota chybí (— v datech), daný parametr v textu vůbec nezmiňuj
 
 POKYNY:
@@ -643,10 +644,12 @@ function buildReviewHtml(
   affiliateUrl: string,
   heroImagePath: string | null,
   slug: string,
+  reviewSlug: string,
 ): string {
   const country = s.origin_country ? (COUNTRY_NAMES[s.origin_country] ?? s.origin_country) : 'Řecko'
-  const price = s.primary_offer_price != null ? Math.round(s.primary_offer_price) : null
-  const pricePerLiter = price != null && s.volume_ml ? Math.round(price / (s.volume_ml / 1000)) : null
+  // Cena a Olivator Score se do HTML nepíšou natvrdo — tokeny dosadí lib/content.ts z DB při každém požadavku.
+  const tokenPrice = `<!-- @PRODUCT_PRICE:${reviewSlug} -->`
+  const tokenPer = `<!-- @PRODUCT_PER:${reviewSlug} -->`
   const acidStr = s.acidity != null ? `${s.acidity.toFixed(2).replace('.', ',')} %` : null
   const isBio = s.name.toUpperCase().includes('BIO')
   const heroImgSrc = heroImagePath ?? s.image_url ?? ''
@@ -701,11 +704,11 @@ function buildReviewHtml(
         <span class="badge">🫙 Plech 5 l</span>
         <span class="badge">🇬🇷 ${country}</span>
         ${isBio ? '<span class="badge badge-gold">🌿 BIO certifikát</span>' : ''}
-        ${s.olivator_score != null ? `<span class="badge badge-gold">Olivator ${s.olivator_score}/100</span>` : ''}
+        <!-- @PRODUCT_SCORE_BADGE:${reviewSlug} -->
       </div>
       <div class="hero-verdict">
         <div style="display:flex;flex-direction:column;align-items:center;flex-shrink:0;gap:4px;">
-          <div class="verdict-score">${s.olivator_score ?? '—'}</div>
+          <div class="verdict-score"><!-- @PRODUCT_SCORE:${reviewSlug} --></div>
           <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,0.3);">z 100 · Olivator</div>
         </div>
         <div>
@@ -724,8 +727,8 @@ function buildReviewHtml(
   <div class="buy-bar-inner">
     <div class="buy-bar-name">${s.name.slice(0, 60)}</div>
     <div style="display:flex;align-items:baseline;gap:10px;">
-      ${price != null ? `<div class="buy-bar-price">${price.toLocaleString('cs-CZ')} Kč</div>` : ''}
-      ${pricePerLiter != null ? `<div class="buy-bar-per">${pricePerLiter} Kč/l · ověřte aktuální cenu</div>` : ''}
+      <div class="buy-bar-price">${tokenPrice}</div>
+      <div class="buy-bar-per">${tokenPer} · ověřte aktuální cenu</div>
     </div>
     <a href="${affiliateUrl}" class="btn-buy-bar" rel="nofollow sponsored">Koupit na Reckonasbavi.cz →</a>
   </div>
@@ -787,11 +790,9 @@ function buildReviewHtml(
           <div class="sidebar-product-name">${s.name.split(' ').slice(0, 3).join(' ')}</div>
           <div class="sidebar-product-sub">${s.brand_slug ? `${s.brand_slug} · ` : ''}Extra panenský · 5l</div>
           <div class="sidebar-specs">${sidebarSpecsHtml}</div>
-          ${price != null ? `
-          <div class="sidebar-price">${price.toLocaleString('cs-CZ')} Kč</div>
-          ${pricePerLiter != null ? `<div class="sidebar-price-per">${pricePerLiter} Kč/l</div>` : ''}
+          <div class="sidebar-price">${tokenPrice}</div>
+          <div class="sidebar-price-per">${tokenPer}</div>
           <div class="sidebar-price-note">Ověřte aktuální cenu před objednávkou</div>
-          ` : ''}
           <a href="${affiliateUrl}" class="btn-buy-full" rel="nofollow sponsored">Koupit na Reckonasbavi.cz →</a>
           <div class="sidebar-disclaimer">Affiliate odkaz — při nákupu obdržíme provizi bez navýšení ceny pro vás.</div>
         </div>
@@ -1147,7 +1148,7 @@ Výstup je VŽDY JSON v code blocku — nic jiného.`,
   }
 
   // 8. Assemble HTML + MDX
-  const htmlBody = buildReviewHtml(s, content, heureka, affiliateUrl, heroImagePath, slug)
+  const htmlBody = buildReviewHtml(s, content, heureka, affiliateUrl, heroImagePath, slug, reviewSlug)
   const mdx = buildMdx(s, content, htmlBody, reviewSlug, affiliateUrl)
 
   // 9. Insert draft product (slug collision handled by resolveUniqueSlug above)
@@ -1331,7 +1332,7 @@ Výstup je VŽDY JSON v code blocku — nic jiného.`,
   const reviewSlug = existing.review_slug ?? `${slug}-recenze`
   const heroImagePath = existing.hero_image
 
-  const htmlBody = buildReviewHtml(s, content, heureka, affiliateUrl, heroImagePath, slug)
+  const htmlBody = buildReviewHtml(s, content, heureka, affiliateUrl, heroImagePath, slug, reviewSlug)
   const mdx = buildMdx(s, content, htmlBody, reviewSlug, affiliateUrl)
 
   // 8. UPDATE existing product (no INSERT — keeps id/slug stable)

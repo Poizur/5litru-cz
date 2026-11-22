@@ -12,6 +12,7 @@ import { readFile } from 'node:fs/promises'
 import { readdirSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 import matter from 'gray-matter'
+import { cache } from 'react'
 import { supabaseAdmin } from './supabase'
 import { getMarket, type Market } from './market'
 import { getLocale } from './locale'
@@ -48,6 +49,8 @@ export interface ProductRow {
   acidity_pct: number | null
   packaging: string | null
   price_czk: number | null
+  price_eur?: number | null
+  olivator_score?: number | null
   rating: number | null
   hero_image: string | null
   status: string
@@ -84,7 +87,8 @@ export async function getGuide(slug: string): Promise<ContentItem | null> {
   if (!r) return null
   const market = await getMarket()
   const body = await applyProductTokens(r.body, market)
-  return { kind: 'guide', slug, frontmatter: r.frontmatter, body }
+  const frontmatter = await applyTokensToFrontmatter(r.frontmatter, market)
+  return { kind: 'guide', slug, frontmatter, body }
 }
 
 export async function getPage(slug: string): Promise<ContentItem | null> {
@@ -101,8 +105,9 @@ export async function getPage(slug: string): Promise<ContentItem | null> {
   }
 
   body = await applyProductTokens(body, market)
+  const frontmatter = await applyTokensToFrontmatter(r.frontmatter, market)
 
-  return { kind, slug, frontmatter: r.frontmatter, body }
+  return { kind, slug, frontmatter, body }
 }
 
 export async function getReview(reviewSlug: string): Promise<ContentItem | null> {
@@ -118,10 +123,11 @@ export async function getReview(reviewSlug: string): Promise<ContentItem | null>
   const { data: fm, content } = matter(raw)
   const market = await getMarket()
   const body = await applyProductTokens(content, market)
+  const frontmatter = await applyTokensToFrontmatter(fm as Frontmatter, market)
   return {
     kind: 'review',
     slug: reviewSlug,
-    frontmatter: fm as Frontmatter,
+    frontmatter,
     body,
     product,
   }
@@ -175,6 +181,7 @@ interface Top3ProductRow {
   hero_image: string | null
   available: boolean | null       // null = column not yet migrated, treat as true
   product_url_sk: string | null   // null before DDL or for products without a SK page
+  olivator_score: number | null   // synced from Olivátor (null before DDL or when Olivátor has no Score)
 }
 
 interface ComparisonRow extends Top3ProductRow {
@@ -218,7 +225,18 @@ function buildPriceInfo(
   }
 }
 
-// ---------- Per-product card injection (used by @PRODUCT_IMG/SPECS/FOOTER tokens) ----------
+// Číselná cena použitá pro min/max a rozdíly: EUR jen na SK trhu a jen když je vyplněná, jinak CZK.
+function priceNumber(p: Pick<Top3ProductRow, 'price_czk' | 'price_eur'>, market: Market): { value: number; eur: boolean } | null {
+  if (market === 'SK' && p.price_eur != null) return { value: p.price_eur, eur: true }
+  if (p.price_czk != null) return { value: p.price_czk, eur: false }
+  return null
+}
+
+function formatAmount(value: number, eur: boolean): string {
+  return eur ? `${value.toFixed(2).replace('.', ',')} €` : `${Math.round(value).toLocaleString('cs-CZ')} Kč`
+}
+
+// ---------- Per-product card injection (used by @PRODUCT_* tokens) ----------
 
 function buildProductImgHtml(p: Top3ProductRow): string {
   if (!p.hero_image) return ''
@@ -265,14 +283,6 @@ function buildProductFooterHtml(p: Top3ProductRow, market: Market): string {
     </div>`
 }
 
-function buildProductPriceText(p: Top3ProductRow, market: Market): string {
-  return buildPriceInfo(p, market).priceFormatted
-}
-
-function buildProductPerText(p: Top3ProductRow, market: Market): string {
-  return buildPriceInfo(p, market).perFormatted
-}
-
 function buildProductAvailabilityHtml(p: Top3ProductRow, market: Market): string {
   const isAvailable = p.available !== false
   const locale = getLocale(market)
@@ -282,54 +292,170 @@ function buildProductAvailabilityHtml(p: Top3ProductRow, market: Market): string
   return `<span class="badge-sold-out">${escapeHtml(locale.soldOut)}</span>`
 }
 
-const PRODUCT_TOKEN_RE = /<!-- @PRODUCT_(?:IMG|SPECS|FOOTER|PRICE|PER|AVAILABILITY):[a-z0-9-]+ -->/
+function buildProductScoreBadgeHtml(p: Top3ProductRow): string {
+  if (p.olivator_score == null) return ''
+  return `<span class="badge badge-gold">Olivator ${p.olivator_score}/100</span>`
+}
 
-async function applyProductTokens(body: string, market: Market = 'CZ'): Promise<string> {
-  if (!PRODUCT_TOKEN_RE.test(body)) return body
-  const matches = [...body.matchAll(/<!-- @PRODUCT_(?:IMG|SPECS|FOOTER|PRICE|PER|AVAILABILITY):([a-z0-9-]+) -->/g)]
-  const uniqueSlugs = [...new Set(matches.map(m => m[1]))]
+// ---------- Tokeny s hodnotami z DB ----------
+//
+// Každá cena, cena za litr a Olivator Score v obsahu (MDX v content/, review_mdx v DB,
+// frontmatter včetně JSON-LD) se bere z tabulky products přes tyto tokeny — nikdy natvrdo.
+//
+//   <!-- @PRODUCT_PRICE:review-slug -->        1 290 Kč                (text)
+//   <!-- @PRODUCT_PER:review-slug -->          258 Kč/l                (text)
+//   <!-- @PRODUCT_SCORE:review-slug -->        68  nebo —              (text)
+//   <!-- @PRODUCT_SCORE_BADGE:review-slug -->  <span class="badge badge-gold">Olivator 68/100</span>
+//   <!-- @PRODUCT_IMG|SPECS|FOOTER|AVAILABILITY:review-slug -->  HTML bloky karet
+//   <!-- @PRICE_MIN --> / <!-- @PRICE_MAX -->  nejnižší/nejvyšší cena ze všech publikovaných olejů
+//   <!-- @PRICE_MIN:slug-a,slug-b -->          totéž jen z vyjmenovaných olejů (skupina, region)
+//   <!-- @PER_MIN --> / <!-- @PER_MAX --> / <!-- @PER_MIN:slug-a,slug-b -->   cena za litr
+//   <!-- @PRICE_CMP:slug-a:slug-b -->          „o 300 Kč dražší“ / „o 300 Kč levnější“ / „za stejnou cenu“ (A vůči B)
+//   <!-- @PRICE_DIFF:slug-a:slug-b -->         „300 Kč“ (absolutní rozdíl)
+//
+// Min/max berou přednostně oleje skladem (available !== false); když žádný není, všechny.
+// Textové tokeny se aplikují i na frontmatter (title, description, schemas → JSON-LD).
 
-  // Fetch with SK columns; fall back gracefully if DDL not yet applied
-  let prodData: Top3ProductRow[] = []
+const TOKEN_RE = /<!-- @(PRODUCT_(?:IMG|SPECS|FOOTER|PRICE|PER|AVAILABILITY|SCORE_BADGE|SCORE):[a-z0-9-]+|PRICE_(?:MIN|MAX)(?::[a-z0-9,-]+)?|PER_(?:MIN|MAX)(?::[a-z0-9,-]+)?|PRICE_(?:CMP|DIFF):[a-z0-9-]+:[a-z0-9-]+) -->/g
+const HTML_TOKEN_KINDS = new Set(['PRODUCT_IMG', 'PRODUCT_SPECS', 'PRODUCT_FOOTER', 'PRODUCT_AVAILABILITY', 'PRODUCT_SCORE_BADGE'])
+
+export interface ApplyTokensOptions {
+  /** Admin náhled: dosadit i hodnoty rozpracovaných (draft) produktů. */
+  includeDrafts?: boolean
+  /** Jen textové tokeny (frontmatter / JSON) — HTML tokeny zůstanou nedotčené. */
+  textOnly?: boolean
+}
+
+export function hasProductTokens(s: string): boolean {
+  TOKEN_RE.lastIndex = 0
+  return TOKEN_RE.test(s)
+}
+
+async function fetchTokenProducts(includeDrafts: boolean): Promise<Top3ProductRow[]> {
+  const statuses = includeDrafts ? ['published', 'draft'] : ['published']
+  // Plný výběr; když sloupce z novějších migrací (price_eur, product_url_sk, olivator_score) chybí, nouzový výběr
   const resFull = await supabaseAdmin
     .from('products')
-    .select('slug, review_slug, name, origin_region, acidity_pct, price_czk, price_eur, product_url_sk, volume_ml, hero_image, available')
-    .in('review_slug', uniqueSlugs)
-    .eq('status', 'published')
-  if (!resFull.error) {
-    prodData = (resFull.data ?? []) as Top3ProductRow[]
-  } else {
-    // Columns price_eur / product_url_sk likely not yet added — fallback
-    const resFallback = await supabaseAdmin
-      .from('products')
-      .select('slug, review_slug, name, origin_region, acidity_pct, price_czk, volume_ml, hero_image, available')
-      .in('review_slug', uniqueSlugs)
-      .eq('status', 'published')
-    prodData = ((resFallback.data ?? []) as Array<Omit<Top3ProductRow, 'price_eur' | 'product_url_sk'>>).map(p => ({
-      ...p, price_eur: null, product_url_sk: null,
-    }))
-  }
+    .select('slug, review_slug, name, origin_region, acidity_pct, price_czk, price_eur, product_url_sk, volume_ml, hero_image, available, olivator_score')
+    .in('status', statuses)
+    .not('review_slug', 'is', null)
+  if (!resFull.error) return (resFull.data ?? []) as Top3ProductRow[]
+  console.warn('[content] token products full fetch failed, using fallback columns:', resFull.error.message)
+  const resFallback = await supabaseAdmin
+    .from('products')
+    .select('slug, review_slug, name, origin_region, acidity_pct, price_czk, volume_ml, hero_image, available')
+    .in('status', statuses)
+    .not('review_slug', 'is', null)
+  return ((resFallback.data ?? []) as Array<Omit<Top3ProductRow, 'price_eur' | 'product_url_sk' | 'olivator_score'>>).map(p => ({
+    ...p, price_eur: null, product_url_sk: null, olivator_score: null,
+  }))
+}
 
-  const productMap = new Map(prodData.map(p => [p.review_slug!, p]))
-  return body
-    .replace(/<!-- @PRODUCT_IMG:([a-z0-9-]+) -->/g, (_, s) => {
-      const p = productMap.get(s); return p ? buildProductImgHtml(p) : ''
-    })
-    .replace(/<!-- @PRODUCT_SPECS:([a-z0-9-]+) -->/g, (_, s) => {
-      const p = productMap.get(s); return p ? buildProductSpecsHtml(p, market) : ''
-    })
-    .replace(/<!-- @PRODUCT_FOOTER:([a-z0-9-]+) -->/g, (_, s) => {
-      const p = productMap.get(s); return p ? buildProductFooterHtml(p, market) : ''
-    })
-    .replace(/<!-- @PRODUCT_PRICE:([a-z0-9-]+) -->/g, (_, s) => {
-      const p = productMap.get(s); return p ? buildProductPriceText(p, market) : '—'
-    })
-    .replace(/<!-- @PRODUCT_PER:([a-z0-9-]+) -->/g, (_, s) => {
-      const p = productMap.get(s); return p ? buildProductPerText(p, market) : '—'
-    })
-    .replace(/<!-- @PRODUCT_AVAILABILITY:([a-z0-9-]+) -->/g, (_, s) => {
-      const p = productMap.get(s); return p ? buildProductAvailabilityHtml(p, market) : ''
-    })
+// Jeden dotaz na request (React cache) — homepage i recenze volají tokeny z generateMetadata i z page.
+const fetchTokenProductsCached = cache(fetchTokenProducts)
+
+function pickRows(all: Top3ProductRow[], bySlug: Map<string, Top3ProductRow>, arg: string | undefined): Top3ProductRow[] {
+  if (!arg) return all
+  return arg.split(',').map(s => bySlug.get(s)).filter((p): p is Top3ProductRow => !!p)
+}
+
+// Nejlevnější / nejdražší olej z množiny: přednost mají oleje skladem.
+function extremeRow(rows: Top3ProductRow[], market: Market, perLiter: boolean, max: boolean): Top3ProductRow | null {
+  const metric = (p: Top3ProductRow) => {
+    const n = priceNumber(p, market)
+    if (!n) return null
+    return perLiter ? n.value / ((p.volume_ml ?? 5000) / 1000) : n.value
+  }
+  const pick = (candidates: Top3ProductRow[]) => {
+    let best: Top3ProductRow | null = null
+    let bestVal = 0
+    for (const p of candidates) {
+      const v = metric(p)
+      if (v == null) continue
+      if (best === null || (max ? v > bestVal : v < bestVal)) { best = p; bestVal = v }
+    }
+    return best
+  }
+  return pick(rows.filter(p => p.available !== false)) ?? pick(rows)
+}
+
+function priceCompareText(a: Top3ProductRow | undefined, b: Top3ProductRow | undefined, market: Market, diffOnly: boolean): string {
+  const na = a ? priceNumber(a, market) : null
+  const nb = b ? priceNumber(b, market) : null
+  if (!na || !nb) return '—'
+  // Srovnávej ve stejné měně: když má jen jeden EUR, spadni na CZK
+  const eur = na.eur && nb.eur
+  const va = eur ? na.value : a!.price_czk
+  const vb = eur ? nb.value : b!.price_czk
+  if (va == null || vb == null) return '—'
+  const diff = va - vb
+  const formatted = formatAmount(Math.abs(diff), eur)
+  if (diffOnly) return formatted
+  const locale = getLocale(market)
+  if (Math.abs(diff) < 0.5) return locale.priceSame
+  return diff > 0 ? locale.priceMoreExpensive(formatted) : locale.priceCheaper(formatted)
+}
+
+function renderToken(
+  token: string,
+  all: Top3ProductRow[],
+  bySlug: Map<string, Top3ProductRow>,
+  market: Market,
+  textOnly: boolean,
+): string | null {
+  const sep = token.indexOf(':')
+  const kind = sep === -1 ? token : token.slice(0, sep)
+  const arg = sep === -1 ? undefined : token.slice(sep + 1)
+  if (textOnly && HTML_TOKEN_KINDS.has(kind)) return null
+
+  switch (kind) {
+    case 'PRODUCT_PRICE': { const p = bySlug.get(arg!); return p ? buildPriceInfo(p, market).priceFormatted : '—' }
+    case 'PRODUCT_PER': { const p = bySlug.get(arg!); return p ? buildPriceInfo(p, market).perFormatted : '—' }
+    case 'PRODUCT_SCORE': { const p = bySlug.get(arg!); return p?.olivator_score != null ? String(p.olivator_score) : '—' }
+    case 'PRODUCT_SCORE_BADGE': { const p = bySlug.get(arg!); return p ? buildProductScoreBadgeHtml(p) : '' }
+    case 'PRODUCT_IMG': { const p = bySlug.get(arg!); return p ? buildProductImgHtml(p) : '' }
+    case 'PRODUCT_SPECS': { const p = bySlug.get(arg!); return p ? buildProductSpecsHtml(p, market) : '' }
+    case 'PRODUCT_FOOTER': { const p = bySlug.get(arg!); return p ? buildProductFooterHtml(p, market) : '' }
+    case 'PRODUCT_AVAILABILITY': { const p = bySlug.get(arg!); return p ? buildProductAvailabilityHtml(p, market) : '' }
+    case 'PRICE_MIN':
+    case 'PRICE_MAX': {
+      const p = extremeRow(pickRows(all, bySlug, arg), market, false, kind === 'PRICE_MAX')
+      return p ? buildPriceInfo(p, market).priceFormatted : '—'
+    }
+    case 'PER_MIN':
+    case 'PER_MAX': {
+      const p = extremeRow(pickRows(all, bySlug, arg), market, true, kind === 'PER_MAX')
+      return p ? buildPriceInfo(p, market).perFormatted : '—'
+    }
+    case 'PRICE_CMP':
+    case 'PRICE_DIFF': {
+      const [a, b] = (arg ?? '').split(':')
+      return priceCompareText(bySlug.get(a), bySlug.get(b), market, kind === 'PRICE_DIFF')
+    }
+    default:
+      return null
+  }
+}
+
+export async function applyProductTokens(body: string, market: Market = 'CZ', opts: ApplyTokensOptions = {}): Promise<string> {
+  if (!hasProductTokens(body)) return body
+  const all = await fetchTokenProductsCached(opts.includeDrafts === true)
+  const bySlug = new Map(all.filter(p => p.review_slug).map(p => [p.review_slug!, p]))
+  return body.replace(TOKEN_RE, (match, token: string) => renderToken(token, all, bySlug, market, opts.textOnly === true) ?? match)
+}
+
+// Textové tokeny ve frontmatteru (title, description, schemas/JSON-LD). Nahrazuje se v JSON
+// serializaci — textové tokeny neobsahují uvozovky ani zpětná lomítka, JSON zůstane validní.
+async function applyTokensToFrontmatter(fm: Frontmatter, market: Market, opts: ApplyTokensOptions = {}): Promise<Frontmatter> {
+  const json = JSON.stringify(fm)
+  if (!hasProductTokens(json)) return fm
+  const replaced = await applyProductTokens(json, market, { ...opts, textOnly: true })
+  try {
+    return JSON.parse(replaced) as Frontmatter
+  } catch (e) {
+    console.warn('[content] frontmatter tokens: JSON parse failed, keeping raw frontmatter:', (e as Error).message)
+    return fm
+  }
 }
 
 // ---------- Dynamic comparison table (DB-driven) ----------
@@ -350,7 +476,7 @@ async function buildDynamicComparisonTable(market: Market = 'CZ'): Promise<strin
     .eq('status', 'published')
     .order('acidity_pct', { ascending: true, nullsFirst: false })
   if (!resFull.error && resFull.data && resFull.data.length > 0) {
-    data = resFull.data as ComparisonRow[]
+    data = (resFull.data as Array<Omit<ComparisonRow, 'olivator_score'>>).map(p => ({ ...p, olivator_score: null }))
   } else {
     console.log('[content] comparison-table full fetch:', resFull.error?.message ?? 'empty result')
     const resFallback = await supabaseAdmin
@@ -359,8 +485,8 @@ async function buildDynamicComparisonTable(market: Market = 'CZ'): Promise<strin
       .eq('status', 'published')
       .order('acidity_pct', { ascending: true, nullsFirst: false })
     if (!resFallback.error && resFallback.data && resFallback.data.length > 0) {
-      data = (resFallback.data as Array<Omit<ComparisonRow, 'price_eur' | 'product_url_sk'>>).map(p => ({
-        ...p, price_eur: null, product_url_sk: null,
+      data = (resFallback.data as Array<Omit<ComparisonRow, 'price_eur' | 'product_url_sk' | 'olivator_score'>>).map(p => ({
+        ...p, price_eur: null, product_url_sk: null, olivator_score: null,
       }))
     }
   }

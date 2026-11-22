@@ -207,6 +207,8 @@ export async function runOlivatorSync(triggeredBy: SyncTrigger): Promise<SyncSum
   // Build URL → offer index for price-sync lookup
   type FlatOffer = {
     olivator_product_id: string
+    olivator_slug: string
+    olivator_score: number | null
     product_url: string
     price: number | null
     in_stock: boolean | null
@@ -223,6 +225,8 @@ export async function runOlivatorSync(triggeredBy: SyncTrigger): Promise<SyncSum
       const rs = Array.isArray(o.retailer) ? o.retailer[0]?.slug ?? null : o.retailer?.slug ?? null
       offersByUrl.set(o.product_url, {
         olivator_product_id: p.id,
+        olivator_slug: p.slug,
+        olivator_score: p.olivator_score ?? null,
         product_url: o.product_url,
         price: effectivePrice(o.price, o.action_price),
         in_stock: o.in_stock,
@@ -232,18 +236,39 @@ export async function runOlivatorSync(triggeredBy: SyncTrigger): Promise<SyncSum
     }
   }
 
-  // 3. Update prices + availability on 5litru products
-  let products_checked = 0, prices_updated = 0, prices_unchanged = 0, prices_missing = 0
-  const { data: ourProducts, error: ourErr } = await supabaseAdmin
-    .from('products')
-    .select('id, slug, product_url, price_czk, available')
-    .not('product_url', 'is', null)
-  if (ourErr) errors.push(`5litru products read: ${ourErr.message}`)
+  // 3. Update prices + availability + Olivator Score on 5litru products
+  let products_checked = 0, prices_updated = 0, prices_unchanged = 0, prices_missing = 0, scores_updated = 0
+  // Sloupce olivator_score / olivator_product_id / olivator_slug přidala migrace 20261122;
+  // když ještě nejsou (starší DB), synchronizují se jen ceny a dostupnost — sync nesmí spadnout.
+  let hasScoreCols = true
+  type OurProductRow = {
+    id: string; slug: string; product_url: string | null; price_czk: number | null; available: boolean | null
+    olivator_score?: number | null; olivator_product_id?: string | null; olivator_slug?: string | null
+  }
+  let ourProducts: OurProductRow[] = []
+  {
+    const resFull = await supabaseAdmin
+      .from('products')
+      .select('id, slug, product_url, price_czk, available, olivator_score, olivator_product_id, olivator_slug')
+      .not('product_url', 'is', null)
+    if (!resFull.error) {
+      ourProducts = (resFull.data ?? []) as OurProductRow[]
+    } else {
+      hasScoreCols = false
+      console.warn('[olivator-sync] score columns missing, syncing prices only:', resFull.error.message)
+      const resLegacy = await supabaseAdmin
+        .from('products')
+        .select('id, slug, product_url, price_czk, available')
+        .not('product_url', 'is', null)
+      if (resLegacy.error) errors.push(`5litru products read: ${resLegacy.error.message}`)
+      ourProducts = (resLegacy.data ?? []) as OurProductRow[]
+    }
+  }
 
   // Track which Olivator product_ids are present in 5litru (via URL match) to exclude from suggestions
   const matchedOlivatorProductIds = new Set<string>()
 
-  for (const p of ourProducts ?? []) {
+  for (const p of ourProducts) {
     products_checked++
     const url = p.product_url as string
     const offer = offersByUrl.get(url)
@@ -269,6 +294,14 @@ export async function runOlivatorSync(triggeredBy: SyncTrigger): Promise<SyncSum
       if (p.available !== newAvailable) updates.available = newAvailable
     }
 
+    // Olivator Score + vazba na produkt Olivátoru (zobrazuje se přes token @PRODUCT_SCORE)
+    let scoreChanged = false
+    if (hasScoreCols) {
+      if ((p.olivator_score ?? null) !== offer.olivator_score) { updates.olivator_score = offer.olivator_score; scoreChanged = true }
+      if ((p.olivator_product_id ?? null) !== offer.olivator_product_id) updates.olivator_product_id = offer.olivator_product_id
+      if ((p.olivator_slug ?? null) !== offer.olivator_slug) updates.olivator_slug = offer.olivator_slug
+    }
+
     if (Object.keys(updates).length === 0) {
       prices_unchanged++
       continue
@@ -282,8 +315,12 @@ export async function runOlivatorSync(triggeredBy: SyncTrigger): Promise<SyncSum
       prices_unchanged++
     } else {
       prices_updated++
+      if (scoreChanged) scores_updated++
+      // Co se změnilo — do logů Railway (price_sync_log drží jen počty)
+      console.log(`[olivator-sync] ${p.slug}: ${JSON.stringify(updates)} (dříve price_czk=${p.price_czk} available=${p.available})`)
     }
   }
+  console.log(`[olivator-sync] products_checked=${products_checked} updated=${prices_updated} (scores_updated=${scores_updated}) unchanged=${prices_unchanged} missing=${prices_missing}`)
 
   // 4. Build suggestion candidates: Olivator 5L products that
   //    (a) HAVE a reckonasbavi offer

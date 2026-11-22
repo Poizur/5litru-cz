@@ -2,7 +2,10 @@ import type { Metadata } from 'next'
 import { getPage } from '@/lib/content'
 import { buildMetadata } from '@/lib/seo'
 
-export const revalidate = 3600
+// Dynamické vykreslení: ceny v obsahu se dosazují z DB při každém requestu (tokeny v lib/content.ts),
+// takže po nočním syncu z Olivátoru není co revalidovat. Dřívější `revalidate = 3600` byl neúčinný —
+// getMarket() volá headers(), což stránku stejně vyřazuje ze statické/ISR cache.
+export const dynamic = 'force-dynamic'
 
 export async function generateMetadata(): Promise<Metadata> {
   const home = await getPage('homepage')

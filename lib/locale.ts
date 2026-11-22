@@ -31,6 +31,10 @@ const CZ_STRINGS = {
   formatPrice: (czk: number) => `${Math.round(czk).toLocaleString('cs-CZ')} Kč`,
   formatPerLiter: (czk: number) => `${Math.round(czk)} Kč/l`,
   formatPerLiterWithSize: (czk: number) => `${Math.round(czk)} Kč/l · plech 5l`,
+  // Tokeny @PRICE_CMP — srovnání ceny dvou olejů z DB
+  priceMoreExpensive: (diff: string) => `o ${diff} dražší`,
+  priceCheaper: (diff: string) => `o ${diff} levnější`,
+  priceSame: 'za stejnou cenu',
 }
 
 const SK_STRINGS = {
@@ -61,6 +65,9 @@ const SK_STRINGS = {
   formatPrice: (eur: number) => `${eur.toFixed(2).replace('.', ',')} €`,
   formatPerLiter: (eur: number) => `${eur.toFixed(2).replace('.', ',')} €/l`,
   formatPerLiterWithSize: (eur: number) => `${eur.toFixed(2).replace('.', ',')} €/l · plech 5l`,
+  priceMoreExpensive: (diff: string) => `o ${diff} drahší`,
+  priceCheaper: (diff: string) => `o ${diff} lacnejší`,
+  priceSame: 'za rovnakú cenu',
 }
 
 export type LocaleStrings = typeof CZ_STRINGS
