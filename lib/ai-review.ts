@@ -893,13 +893,15 @@ function buildMdx(
           '@type': 'Product',
           name: s.name,
           brand: s.brand_slug ? { '@type': 'Brand', name: s.brand_slug } : undefined,
-          offers: {
-            '@type': 'Offer',
-            priceCurrency: 'CZK',
-            price: s.primary_offer_price ?? undefined,
-            availability: 'https://schema.org/InStock',
-            url: affiliateUrl,
-          },
+          offers: s.primary_offer_price != null
+            ? {
+                '@type': 'Offer',
+                priceCurrency: 'CZK',
+                price: s.primary_offer_price,
+                availability: 'https://schema.org/InStock',
+                url: affiliateUrl,
+              }
+            : undefined,
         },
         reviewRating: { '@type': 'Rating', ratingValue: c.schema_rating.toFixed(1), bestRating: '5' },
       },

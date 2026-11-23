@@ -37,6 +37,25 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   return buildMetadata(item, market)
 }
 
+function hasPrice(offer: unknown): boolean {
+  if (!offer || typeof offer !== 'object') return false
+  const o = offer as Record<string, unknown>
+  const spec = o.priceSpecification as Record<string, unknown> | undefined
+  return (o.price != null && o.price !== '') || (spec?.price != null && spec.price !== '')
+}
+
+function dropPricelessOffers(node: Record<string, unknown>): Record<string, unknown> {
+  let out = node
+  if (out['@type'] === 'Product' && 'offers' in out) {
+    const offers = Array.isArray(out.offers) ? out.offers.filter(hasPrice) : hasPrice(out.offers) ? out.offers : null
+    const { offers: _dropped, ...rest } = out
+    out = offers && (!Array.isArray(offers) || offers.length > 0) ? { ...rest, offers } : rest
+  }
+  const reviewed = out.itemReviewed as Record<string, unknown> | undefined
+  if (reviewed && typeof reviewed === 'object') out = { ...out, itemReviewed: dropPricelessOffers(reviewed) }
+  return out
+}
+
 export default async function ContentPage({ params }: PageProps) {
   const { slug } = await params
   const item = await resolve(slug)
@@ -73,6 +92,9 @@ export default async function ContentPage({ params }: PageProps) {
       return { ...s, itemReviewed: patchOffers(reviewed) }
     })
   }
+
+  // Google: Offer bez price je chyba produktových úryvků → takovou nabídku raději vynech.
+  pageSchemas = pageSchemas.map(dropPricelessOffers)
 
   const breadcrumb = breadcrumbSchema(item, market)
   const schemas = breadcrumb ? [...pageSchemas, breadcrumb] : pageSchemas
